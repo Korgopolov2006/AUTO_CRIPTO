@@ -1,0 +1,63 @@
+<UserControl x:Class="SetupAssistant.Views.SetupWizardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:helpers="clr-namespace:SetupAssistant.Helpers"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
+             Background="{DynamicResource BackgroundBrush}">
+    <UserControl.Resources>
+        <helpers:StatusLevelToBrushConverter x:Key="StatusToBrush" />
+        <helpers:StatusLevelToTextConverter x:Key="StatusToText" />
+        <helpers:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+    </UserControl.Resources>
+
+    <DockPanel Margin="32">
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,16">
+            <Button Content="← Назад" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding GoBackCommand}" Margin="0,0,12,0" />
+            <TextBlock Text="Настройка рабочего места" Style="{StaticResource PageTitleStyle}" Margin="0" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,16">
+            <Button Content="Начать настройку" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding StartSetupCommand}" />
+            <Button Content="Отмена" Style="{StaticResource SecondaryButtonStyle}" Margin="12,0,0,0"
+                    Command="{Binding CancelSetupCommand}"
+                    Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}" />
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,16">
+            <TextBlock Text="{Binding CompletedStepsCount, StringFormat='Выполнено шагов: {0} из '}" Style="{StaticResource MutedTextStyle}" />
+            <ProgressBar Minimum="0" Maximum="{Binding TotalStepsCount}" Value="{Binding CompletedStepsCount}" Margin="0,6,0,0" />
+        </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding Steps}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,10">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <Ellipse Grid.Column="0" Style="{StaticResource StatusDotStyle}" Width="14" Height="14"
+                                         Fill="{Binding Status, Converter={StaticResource StatusToBrush}}" VerticalAlignment="Top" Margin="0,3,14,0" />
+
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Details}" Style="{StaticResource MutedTextStyle}"
+                                                TextWrapping="Wrap" Margin="0,4,0,0" />
+                                </StackPanel>
+
+                                <TextBlock Grid.Column="2" Text="{Binding Status, Converter={StaticResource StatusToText}}"
+                                           Style="{StaticResource MutedTextStyle}" VerticalAlignment="Top" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>
