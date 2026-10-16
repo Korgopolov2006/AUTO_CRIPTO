@@ -1,0 +1,219 @@
+{
+  "AppName": "Помощник настройки рабочего места для электронной подписи",
+  "AppVersion": "1.0.0",
+  "LogoPath": "Resources/logo.png",
+
+  // Дистрибутивы из папки Appendices. Kind: Exe | Msi.
+  "Installers": {
+    // CSPSetup-5.0.12000.exe — фирменный бутстраппер без документированного тихого режима,
+    // поэтому используется MSI-пакет через msiexec /qn.
+    "CryptoProCsp": {
+      "Path": "Appendices\\Крипто Про Windows\\csp-x64-rus.msi",
+      "Kind": "Msi",
+      "SilentArgs": ""
+    },
+    // Отдельный дистрибутив cadesplugin.exe в Appendices отсутствует.
+    // Добавьте файл и укажите путь, чтобы шаг установки Browser Plugin выполнялся.
+    "CryptoProBrowserPlugin": {
+      "Path": "",
+      "Kind": "Exe",
+      "SilentArgs": ""
+    },
+    // Chromium GOST: последняя версия берётся из GitHub API (deemru/Chromium-Gost), файл выбирается
+    // по regex. Ставится для всех пользователей (--system-level). Path — запасной вариант без сети.
+    "ChromiumGost": {
+      "Path": "Appendices\\chromium-gost-152.0.7977.134-windows-amd64-installer.exe",
+      "DownloadUrl": "https://api.github.com/repos/deemru/Chromium-Gost/releases/latest",
+      "DownloadAssetRegex": "windows-amd64-installer\\.exe$",
+      "Kind": "Exe",
+      "SilentArgs": "--system-level --do-not-launch-chrome"
+    },
+    // Контур.Плагин: всегда скачивается актуальная версия. NSIS-установщик: тихий режим — /S.
+    // Path — запасной вариант без сети.
+    "KonturPlugin": {
+      "Path": "Appendices\\DiagPlugin_user.003074.exe",
+      "DownloadUrl": "https://help.kontur.ru/DiagPlugin.exe",
+      "Kind": "Exe",
+      "SilentArgs": "/S"
+    },
+    // Плагин пользователя систем электронного правительства (native-хост ru.rtlabs.ifcplugin,
+    // нужен расширению «Госуслуги»). Подписан Ростелекомом, MSI ставится тихо: msiexec /qn.
+    "GosuslugiPlugin": {
+      "Path": "Appendices\\Плагин Госуслуг\\IFCPlugin-x64.msi",
+      "Kind": "Msi",
+      "SilentArgs": ""
+    },
+    // Драйверы Рутокен 5.3.00.0000 (MSI x64, подпись АО «Актив-софт»), источник:
+    // https://www.rutoken.ru/support/download/windows/ (лицензионное соглашение принято заказчиком).
+    "RutokenDriver": {
+      "Path": "Appendices\\Рутокен\\rtDrivers.x64.msi",
+      "Kind": "Msi",
+      "SilentArgs": ""
+    },
+    "JaCartaDriver": {
+      "Path": "",
+      "Kind": "Msi",
+      "SilentArgs": ""
+    }
+  },
+
+  "MinVersions": {
+    "CryptoProCsp": "5.0.0",
+    "CryptoProBrowserPlugin": "2.0.0",
+    "ChromiumGost": "100.0.0",
+    "KonturPlugin": "1.0.0"
+  },
+
+  // Для ChromiumGost и KonturPlugin рекомендуемая версия пуста: ставится свежая с сайта,
+  // сравнивать с зашитым номером не с чем. CryptoProCsp — фиксированная версия.
+  "RecommendedVersions": {
+    "CryptoProCsp": "5.0.12000",
+    "CryptoProBrowserPlugin": "2.0.14000",
+    "ChromiumGost": "",
+    "KonturPlugin": ""
+  },
+
+  "RequiredComponents": {
+    "CryptoProCsp": true,
+    "CryptoProBrowserPlugin": true,
+    "ChromiumGost": true,
+    "KonturPlugin": true,
+    "GosuslugiPlugin": true,
+    "RutokenDriver": true,
+    "JaCartaDriver": false
+  },
+
+  // Native messaging-хосты, через которые расширения браузера общаются с плагинами (имена взяты из
+  // кода расширений). Хост считается найденным, если он зарегистрирован в HKLM или HKCU в одной из
+  // веток RegistryRoots и файл манифеста существует.
+  "NativeMessaging": {
+    "RegistryRoots": [
+      "SOFTWARE\\Google\\Chrome\\NativeMessagingHosts",
+      "SOFTWARE\\Chromium\\NativeMessagingHosts",
+      "SOFTWARE\\Microsoft\\Edge\\NativeMessagingHosts"
+    ],
+    "Hosts": [
+      { "Name": "ru.cryptopro.nmcades", "Description": "КриптоПро ЭЦП Browser plug-in" },
+      { "Name": "kontur.plugin", "Description": "Контур.Плагин" },
+      { "Name": "ru.rtlabs.ifcplugin", "Description": "Плагин Госуслуг" }
+    ]
+  },
+
+  // Сертификаты УЦ (корневые и промежуточные) для построения цепочки доверия. Импорт выполняется
+  // только при совпадении Thumbprint (SHA-1) с файлом, действующем сроке и признаке УЦ.
+  // Store: LocalMachine\Root | LocalMachine\CA | CurrentUser\Root | CurrentUser\CA.
+  // Пример записи (файлы кладите в Appendices\Сертификаты УЦ\):
+  //   { "Name": "Корневой сертификат УЦ", "Path": "Appendices\\Сертификаты УЦ\\root.cer",
+  //     "Thumbprint": "0123456789ABCDEF0123456789ABCDEF01234567", "Store": "LocalMachine\\Root" }
+  "CaCertificates": [],
+
+  // Офлайн-установка расширений: .crx копируются в RepositoryDirectory, рядом создаётся
+  // updates.xml, ID вносятся в политику ExtensionInstallForcelist перечисленных браузеров.
+  // Id вычислен из соответствующего .pem; при переупаковке .crx очистите Id — он будет
+  // вычислен заново из PemPath автоматически.
+  "Extensions": {
+    "RepositoryDirectory": "%ProgramData%\\SetupAssistant\\Extensions",
+    "PolicyRegistryKeys": [
+      "SOFTWARE\\Policies\\Google\\Chrome\\ExtensionInstallForcelist",
+      "SOFTWARE\\Policies\\Chromium\\ExtensionInstallForcelist",
+      "SOFTWARE\\Policies\\ChromiumGost\\ExtensionInstallForcelist"
+    ],
+    // Проверка новых версий в Chrome Web Store при запуске. Во внутренней сети без интернета
+    // тихо пропускается; новые .crx скачивает ExtensionUpdater.exe на компьютере с интернетом.
+    "CheckUpdatesOnStartup": true,
+    "Items": [
+      {
+        "Name": "Extension for CAdES Browser Plug-in",
+        "Id": "pfhgbfnnjiafkhfdkmpiflachepdcjod",
+        "StoreId": "pfhgbfnnjiafkhfdkmpiflachepdcjod",
+        "CrxPath": "Appendices\\расширения chromium\\Extension for CAdES Browser Plug-in\\1.3.17_0.crx",
+        "Version": "1.3.17",
+        "Role": "CryptoPro"
+      },
+      {
+        "Name": "CryptoPro Extension for CAdES Browser",
+        "Id": "bhicbipkdjjjceomamildaakfailhbfj",
+        "StoreId": "iifchhfnnmpdbibifmljnfjhpififfog",
+        "CrxPath": "Appendices\\расширения chromium\\CryptoPro Extension for CAdES Browser\\1.2.13_1.crx",
+        "PemPath": "Appendices\\расширения chromium\\CryptoPro Extension for CAdES Browser\\1.2.13_1.pem",
+        "Version": "1.2.13",
+        "Role": "Other"
+      },
+      {
+        "Name": "Контур.Расширение",
+        "Id": "momffihklfhkoakghidmkdocdkbfmoac",
+        "StoreId": "momffihklfhkoakghidmkdocdkbfmoac",
+        "CrxPath": "Appendices\\расширения chromium\\Контур.Расширение\\3.2.13_0.crx",
+        "Version": "3.2.13",
+        "Role": "Kontur"
+      },
+      {
+        "Name": "Госплагин",
+        "Id": "jabjbhgjaidecageckilhonbggakppme",
+        "StoreId": "jabjbhgjaidecageckilhonbggakppme",
+        "CrxPath": "Appendices\\расширения chromium\\Госплагин\\1.3.43.0_0.crx",
+        "Version": "1.3.43.0",
+        "Role": "Other"
+      },
+      {
+        "Name": "Госуслуги",
+        "Id": "nolhokdlfhmehdfdppgjochmgfkoihdo",
+        "StoreId": "pbefkdcndngodfeigfdgiodgnmbgcfha",
+        "CrxPath": "Appendices\\расширения chromium\\Госуслуги\\1.2.8_1.crx",
+        "PemPath": "Appendices\\расширения chromium\\Госуслуги\\1.2.8_1.pem",
+        "Version": "1.2.8",
+        "Role": "Other"
+      }
+    ]
+  },
+
+  "Logging": {
+    "LogDirectory": "Logs",
+    "LogFileNamePattern": "setup-assistant-{0:yyyy-MM-dd}.log",
+    "RetainDays": 30,
+    "MinimumLevel": "Information"
+  },
+
+  "CheckSettings": {
+    "TokenWaitTimeoutSeconds": 120,
+    "TokenPollIntervalMs": 1500,
+    "CertificateExpiryWarningDays": 30
+  },
+
+  "UiSettings": {
+    "Theme": "Light",
+    "AccentColor": "#2563EB",
+    "ShowAdvancedDetails": true
+  },
+
+  "SupportedBrowsers": [
+    {
+      "Name": "Chromium Gost",
+      "Kind": "ChromiumGost",
+      "RegistryDisplayNamePattern": "Chromium-Gost",
+      "ExecutableName": "chrome.exe",
+      "RequiresGostSupport": true
+    },
+    {
+      "Name": "Яндекс Браузер",
+      "Kind": "Yandex",
+      "RegistryDisplayNamePattern": "Yandex",
+      "ExecutableName": "browser.exe",
+      "RequiresGostSupport": false
+    },
+    {
+      "Name": "Google Chrome",
+      "Kind": "Chrome",
+      "RegistryDisplayNamePattern": "Google Chrome",
+      "ExecutableName": "chrome.exe",
+      "RequiresGostSupport": false
+    },
+    {
+      "Name": "Microsoft Edge",
+      "Kind": "Edge",
+      "RegistryDisplayNamePattern": "Microsoft Edge",
+      "ExecutableName": "msedge.exe",
+      "RequiresGostSupport": false
+    }
+  ]
+}
