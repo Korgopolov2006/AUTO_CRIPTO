@@ -123,7 +123,6 @@
     "Products": [
       { "Name": "Контур.Плагин (Диаг.Плагин)", "DisplayNamePatterns": [ "Диаг.Плагин", "Контур.Плагин" ], "Kind": "Exe", "Args": "/S", "ProcessPathContains": "\\SkbKontur\\" },
       { "Name": "Плагин Госуслуг", "DisplayNamePatterns": [ "Плагин пользователя систем электронного правительства" ], "Kind": "Msi" },
-      { "Name": "Chromium GOST", "DisplayNamePatterns": [ "Chromium-Gost" ], "Kind": "Exe", "Args": "--force-uninstall", "ProcessPathContains": "\\Chromium\\Application\\" },
       { "Name": "КриптоПро ЭЦП Browser plug-in", "DisplayNamePatterns": [ "КриптоПро ЭЦП Browser plug-in", "CryptoPro Browser plug-in" ], "Kind": "Msi" },
       { "Name": "Драйверы Рутокен", "DisplayNamePatterns": [ "Драйверы Рутокен", "Rutoken Drivers" ], "Kind": "Msi" },
       { "Name": "КриптоПро CSP", "DisplayNamePatterns": [ "КриптоПро CSP", "CryptoPro CSP" ], "Kind": "Msi" }

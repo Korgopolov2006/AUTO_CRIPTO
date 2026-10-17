@@ -13,4 +13,10 @@ public interface IDownloadService
         string? githubAssetRegex,
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Имя файла в последнем релизе GitHub (<paramref name="apiUrl"/> — адрес «latest release», файл выбирается по
+    /// <paramref name="assetRegex"/>), ничего не скачивая; null — если узнать не удалось (нет связи).
+    /// </summary>
+    Task<string?> GetLatestAssetNameAsync(string apiUrl, string assetRegex, CancellationToken cancellationToken = default);
 }

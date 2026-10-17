@@ -21,6 +21,7 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
     private readonly IDialogService _dialogService;
     private readonly ITokenPinService _tokenPinService;
     private readonly ILoggingService _logger;
+    private readonly IVersionService _versionService;
     private SetupRunOptions _options = new();
 
     public SetupOrchestrationService(
@@ -36,8 +37,10 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         ICaCertificateService caCertificateService,
         IDialogService dialogService,
         ITokenPinService tokenPinService,
-        ILoggingService logger)
+        ILoggingService logger,
+        IVersionService versionService)
     {
+        _versionService = versionService;
         _dialogService = dialogService;
         _tokenPinService = tokenPinService;
         _tokenService = tokenService;
@@ -205,14 +208,30 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
 
     private async Task RunInstall(SetupStepModel step, InstallerDefinition installer, CancellationToken cancellationToken)
     {
+        string? installedVersion = null;
+        var updating = false;
+
         if (!_options.ForceReinstall && CheckInstalled(step.Kind) is { Status: StatusLevel.Ok } existing)
         {
-            step.Status = StatusLevel.Ok;
-            step.Details = string.IsNullOrEmpty(existing.InstalledVersion)
-                ? "Уже установлено — установка не требуется"
-                : $"Уже установлено (версия {existing.InstalledVersion}) — установка не требуется";
-            _logger.Info($"Настройка: {step.Title}", "Пропущено: компонент уже установлен");
-            return;
+            // Chromium GOST выходит часто и не имеет зафиксированной версии: при установке подтягиваем актуальную.
+            var newer = step.Kind == SetupStepKind.InstallChromiumGost
+                ? await FindNewerChromiumVersionAsync(installer, existing.InstalledVersion, cancellationToken)
+                : null;
+
+            if (newer is null)
+            {
+                step.Status = StatusLevel.Ok;
+                step.Details = string.IsNullOrEmpty(existing.InstalledVersion)
+                    ? "Уже установлено — установка не требуется"
+                    : $"Уже установлено (версия {existing.InstalledVersion}), актуальная — установка не требуется";
+                _logger.Info($"Настройка: {step.Title}", "Пропущено: компонент уже установлен");
+                return;
+            }
+
+            updating = true;
+            installedVersion = existing.InstalledVersion;
+            step.Details = $"Обновление: {installedVersion} → {newer}";
+            _logger.Info($"Настройка: {step.Title}", $"Доступна новая версия: установлена {installedVersion}, будет установлена {newer}");
         }
 
         if (!installer.IsConfigured)
@@ -249,6 +268,14 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
                 step.Details = "Не удалось скачать дистрибутив (нет связи или не пройдена проверка подписи), проверьте журнал";
                 return;
             }
+            else if (updating && _versionService.Compare(ExtractVersion(installer.Path), installedVersion) <= 0)
+            {
+                // Встроенный дистрибутив не новее установленного версии: ставить его значило бы понизить версию.
+                step.Status = StatusLevel.Warning;
+                step.Details = $"Установлена версия {installedVersion}; новую версию скачать не удалось, а встроенная не новее. Повторите при наличии интернета";
+                _logger.Warning($"Настройка: {step.Title}", "Обновление пропущено: новую версию скачать не удалось, встроенная не новее установленной");
+                return;
+            }
             else
             {
                 _logger.Warning($"Настройка: {step.Title}", "Скачать последнюю версию не удалось, используется локальный дистрибутив");
@@ -266,6 +293,42 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
                 ? "Установка завершена, требуется перезагрузка компьютера"
                 : "Установка завершена успешно"
             : result.ErrorMessage;
+    }
+
+    /// <summary>
+    /// Версия Chromium GOST новее установленной: берётся большая из последней на GitHub и встроенной в приложение
+    /// (версия читается из имени файла). null — обновление не нужно или не из чего выбрать.
+    /// </summary>
+    private async Task<string?> FindNewerChromiumVersionAsync(InstallerDefinition installer, string? installedVersion, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(installedVersion))
+        {
+            return null;
+        }
+
+        var candidates = new List<string>();
+        if (!string.IsNullOrWhiteSpace(installer.Path) && ExtractVersion(installer.Path) is { } local)
+        {
+            candidates.Add(local);
+        }
+
+        if (!string.IsNullOrWhiteSpace(installer.DownloadUrl) && !string.IsNullOrWhiteSpace(installer.DownloadAssetRegex))
+        {
+            var assetName = await _downloadService.GetLatestAssetNameAsync(installer.DownloadUrl, installer.DownloadAssetRegex, cancellationToken);
+            if (assetName is not null && ExtractVersion(assetName) is { } online)
+            {
+                candidates.Add(online);
+            }
+        }
+
+        var latest = candidates.OrderByDescending(v => v, Comparer<string>.Create(_versionService.Compare)).FirstOrDefault();
+        return latest is not null && _versionService.Compare(latest, installedVersion) > 0 ? latest : null;
+    }
+
+    private static string? ExtractVersion(string fileNameOrPath)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(Path.GetFileName(fileNameOrPath), @"\d+(\.\d+){2,3}");
+        return match.Success ? match.Value : null;
     }
 
     private async Task InstallCaCertificatesAsync(SetupStepModel step, CancellationToken cancellationToken)
