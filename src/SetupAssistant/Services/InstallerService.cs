@@ -246,7 +246,7 @@ public sealed class InstallerService : IInstallerService
         var message = $"{actionLabel} выполняется: {FormatElapsed(elapsed)}.";
         return elapsed < TimeSpan.FromMinutes(3)
             ? message
-            : $"{message} Крупные пакеты (КриптоПро CSP) могут ставиться долго — не закрывайте окно и не отменяйте шаг.";
+            : $"{message} Пакеты КриптоПро CSP могут обрабатываться 20–30 минут — не закрывайте окно и не отменяйте шаг.";
     }
 
     private static string FormatElapsed(TimeSpan elapsed) => $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
