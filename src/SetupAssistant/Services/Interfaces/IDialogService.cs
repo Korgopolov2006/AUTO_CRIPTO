@@ -33,4 +33,7 @@ public interface IActionPrompt : IDisposable
 {
     /// <summary>Отменяется, когда пользователь нажал кнопку отказа в окне.</summary>
     CancellationToken Cancelled { get; }
+
+    /// <summary>Меняет текст в уже открытом окне (например, обратный отсчёт ожидания).</summary>
+    void UpdateMessage(string message);
 }

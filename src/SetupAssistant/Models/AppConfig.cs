@@ -237,7 +237,7 @@ public sealed class LoggingConfig
 
 public sealed class CheckSettingsConfig
 {
-    public int TokenWaitTimeoutSeconds { get; set; } = 120;
+    public int TokenWaitTimeoutSeconds { get; set; } = 60;
     public int TokenPollIntervalMs { get; set; } = 1500;
     public int CertificateExpiryWarningDays { get; set; } = 30;
 }

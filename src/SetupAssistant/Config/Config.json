@@ -215,7 +215,7 @@
   },
 
   "CheckSettings": {
-    "TokenWaitTimeoutSeconds": 120,
+    "TokenWaitTimeoutSeconds": 60,
     "TokenPollIntervalMs": 1500,
     "CertificateExpiryWarningDays": 30
   },

@@ -19,6 +19,7 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
     private readonly ICertificateService _certificateService;
     private readonly ICaCertificateService _caCertificateService;
     private readonly IDialogService _dialogService;
+    private readonly ITokenPinService _tokenPinService;
     private readonly ILoggingService _logger;
     private SetupRunOptions _options = new();
 
@@ -34,9 +35,11 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         ICertificateService certificateService,
         ICaCertificateService caCertificateService,
         IDialogService dialogService,
+        ITokenPinService tokenPinService,
         ILoggingService logger)
     {
         _dialogService = dialogService;
+        _tokenPinService = tokenPinService;
         _tokenService = tokenService;
         _certificateService = certificateService;
         _caCertificateService = caCertificateService;
@@ -320,31 +323,89 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         }
     }
 
-    /// <summary>Если носитель уже подключён — возвращает его сразу; иначе показывает окно с просьбой подключить и ждёт.</summary>
+    /// <summary>
+    /// Если носитель уже подключён — возвращает его сразу; иначе показывает модальное окно с просьбой подключить носитель
+    /// и ждёт его заданное время (по умолчанию 60 с) с обратным отсчётом. Из окна можно выбрать «Пропустить».
+    /// </summary>
     private async Task<(TokenInfo? Token, bool Skipped)> WaitForTokenAsync(SetupStepModel step, CancellationToken cancellationToken)
     {
-        var connected = _tokenService.GetConnectedTokens().FirstOrDefault();
+        var connected = await FindTokenAsync(cancellationToken);
         if (connected is not null)
         {
             return (connected, false);
         }
 
-        var timeoutSeconds = _configService.Current.CheckSettings.TokenWaitTimeoutSeconds;
-        using var prompt = _dialogService.ShowActionPrompt(
-            "Подключите носитель",
+        var timeout = TimeSpan.FromSeconds(Math.Max(5, _configService.Current.CheckSettings.TokenWaitTimeoutSeconds));
+        var deadline = DateTime.Now + timeout;
+
+        static string Message(int secondsLeft) =>
             "Подключите носитель электронной подписи (Рутокен или JaCarta) к USB-порту компьютера.\n\n" +
-            $"Окно закроется автоматически, когда носитель будет обнаружен. Время ожидания — {timeoutSeconds} с.",
-            "Пропустить");
+            $"Окно закроется само, как только носитель будет обнаружен. Осталось ждать: {secondsLeft} с.\n" +
+            "Если носитель сейчас не нужен, нажмите «Пропустить».";
+
+        using var prompt = _dialogService.ShowActionPrompt("Подключите носитель", Message((int)timeout.TotalSeconds), "Пропустить");
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, prompt.Cancelled);
+        _logger.Info("Ожидание носителя", $"Запрошено подключение носителя, ожидание {(int)timeout.TotalSeconds} с");
 
         try
         {
-            var token = await _tokenService.WaitForTokenAsync(new Progress<string>(text => step.Details = text), linked.Token);
-            return (token, false);
+            while (DateTime.Now < deadline)
+            {
+                linked.Token.ThrowIfCancellationRequested();
+
+                var secondsLeft = (int)Math.Ceiling((deadline - DateTime.Now).TotalSeconds);
+                prompt.UpdateMessage(Message(secondsLeft));
+                step.Details = $"Ожидание носителя: осталось {secondsLeft} с";
+
+                var token = await FindTokenAsync(linked.Token);
+                if (token is not null)
+                {
+                    _logger.Info("Ожидание носителя", $"Обнаружен носитель: {token.DeviceName}");
+                    return (token, false);
+                }
+
+                await Task.Delay(1000, linked.Token);
+            }
+
+            _logger.Warning("Ожидание носителя", "Носитель не был подключён за отведённое время");
+            return (null, false);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
+            _logger.Info("Ожидание носителя", "Ожидание пропущено пользователем");
             return (null, true);
+        }
+    }
+
+    /// <summary>Ищет подключённый носитель двумя способами: по устройствам Windows и через драйвер производителя (PKCS#11).</summary>
+    private async Task<TokenInfo?> FindTokenAsync(CancellationToken cancellationToken)
+    {
+        var byDevice = await Task.Run(() => _tokenService.GetConnectedTokens().FirstOrDefault(), cancellationToken);
+        if (byDevice is not null)
+        {
+            return byDevice;
+        }
+
+        try
+        {
+            var scan = await _tokenPinService.ScanAsync(cancellationToken);
+            return scan.Tokens.Select(t => new TokenInfo
+            {
+                Type = t.Provider == "JaCarta" ? TokenType.JaCarta : TokenType.Rutoken,
+                DeviceName = string.IsNullOrWhiteSpace(t.Label) ? t.Model : $"{t.Label} ({t.Model})",
+                SerialNumber = t.SerialNumber,
+                IsConnected = true,
+                DriverInstalled = true
+            }).FirstOrDefault();
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Драйвер производителя недоступен — полагаемся на определение по устройствам Windows.
+            return null;
         }
     }
 
