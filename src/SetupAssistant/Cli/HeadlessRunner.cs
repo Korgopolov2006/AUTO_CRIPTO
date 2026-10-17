@@ -61,9 +61,15 @@ public sealed class HeadlessRunner
             Print($"  [{component.StatusText}] {component.Name}" + (string.IsNullOrEmpty(component.ErrorMessage) ? string.Empty : $" — {component.ErrorMessage}"));
         }
 
+        // Не установлено / не подключён / не в домене — сведения: не на каждом компьютере нужен весь набор, на код возврата не влияют.
+        foreach (var info in summary.Results.Where(c => c.Status == StatusLevel.Info && (c.ShowOnDashboard || c.IsDeviceManagement)))
+        {
+            Print($"  [К сведению] {info.Name} — {info.DashboardText}");
+        }
+
         Print(summary.Problems.Count == 0
-            ? "Проблем не найдено."
-            : $"Ошибок: {summary.ErrorCount}, предупреждений: {summary.WarningCount}. Мастер может исправить: {summary.Fixable.Count}.");
+            ? $"Проблем не найдено. К сведению: {summary.InfoCount}; можно установить мастером: {summary.Missing.Count}."
+            : $"Ошибок: {summary.ErrorCount}, предупреждений: {summary.WarningCount}. К сведению: {summary.InfoCount}.");
 
         ExportReport(options, summary, Array.Empty<string>(), TimeSpan.Zero);
         return summary.ExitCode;

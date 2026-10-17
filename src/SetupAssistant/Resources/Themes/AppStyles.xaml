@@ -150,6 +150,10 @@
                 <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
                 <Setter TargetName="Ring" Property="IsActive" Value="True" />
             </DataTrigger>
+            <DataTrigger Binding="{Binding}" Value="{x:Static models:StatusLevel.Info}">
+                <Setter TargetName="Icon" Property="Glyph" Value="&#xE946;" />
+                <Setter TargetName="Icon" Property="Foreground" Value="{DynamicResource SystemControlHighlightAccentBrush}" />
+            </DataTrigger>
         </DataTemplate.Triggers>
     </DataTemplate>
 

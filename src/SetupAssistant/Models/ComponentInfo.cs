@@ -43,7 +43,20 @@ public partial class ComponentInfo : ObservableObject
     /// <summary>Предупреждение или ошибка, о которых нужно сообщить пользователю.</summary>
     public bool IsProblem => !IsOptional && Status is StatusLevel.Warning or StatusLevel.Error;
 
-    public bool CanFix => IsProblem && FixStep is not null;
+    /// <summary>Компонент не установлен или не подключён: это сведения о рабочем месте, а не проблема.</summary>
+    public bool IsMissing => Status == StatusLevel.Info && FixStep is not null && !IsOptional;
+
+    /// <summary>Мастер может установить или исправить компонент.</summary>
+    public bool CanFix => (IsProblem || IsMissing) && FixStep is not null;
+
+    /// <summary>Подпись для статуса «К сведению»: «Не установлено», «Не подключён», «Не в домене».</summary>
+    public string? InfoText { get; set; }
+
+    /// <summary>Показывать в обзоре на главной странице.</summary>
+    public bool ShowOnDashboard { get; set; }
+
+    /// <summary>Это проверка «Компьютер в домене / MDM».</summary>
+    public bool IsDeviceManagement => Name.StartsWith("Управление компьютером", StringComparison.Ordinal);
 
     public string StatusText => Status switch
     {
@@ -52,7 +65,20 @@ public partial class ComponentInfo : ObservableObject
         StatusLevel.Error => "Ошибка",
         StatusLevel.InProgress => "Выполняется",
         StatusLevel.Skipped => "Пропущено",
+        StatusLevel.Info => string.IsNullOrEmpty(InfoText) ? "К сведению" : InfoText,
         _ => "Не проверено"
+    };
+
+    /// <summary>Короткая строка для обзора на главной: «Установлено, версия X», «Не установлено», «Компьютер в домене».</summary>
+    public string DashboardText => Status switch
+    {
+        StatusLevel.Ok when Type == ComponentType.Token => $"Подключён: {InstalledVersion}",
+        StatusLevel.Ok when IsDeviceManagement => "Компьютер в домене или управляется (MDM)",
+        StatusLevel.Ok => string.IsNullOrEmpty(InstalledVersion) ? "Установлено" : $"Установлено, версия {InstalledVersion}",
+        StatusLevel.Info when IsDeviceManagement => "Компьютер не в домене и не управляется (MDM)",
+        StatusLevel.Info => string.IsNullOrEmpty(InfoText) ? "К сведению" : InfoText,
+        StatusLevel.Warning or StatusLevel.Error => string.IsNullOrEmpty(ErrorMessage) ? StatusText : ErrorMessage,
+        _ => StatusText
     };
 
     /// <summary>Текст для буфера обмена: имя, статус, версии и описание проблемы.</summary>

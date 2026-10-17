@@ -24,7 +24,7 @@
                     IsEnabled="{Binding CanEditSelection}" />
             <Button Content="Снять выбор" Margin="0,0,8,6" Command="{Binding SelectNoneCommand}"
                     IsEnabled="{Binding CanEditSelection}" />
-            <Button Content="Только проблемные" Margin="0,0,14,6" Command="{Binding SelectProblemsCommand}"
+            <Button Content="Только недостающие" Margin="0,0,14,6" Command="{Binding SelectProblemsCommand}"
                     IsEnabled="{Binding CanEditSelection}" />
             <CheckBox Content="Переустановить установленные" MinWidth="0" Margin="0,0,14,6" IsChecked="{Binding ForceReinstall}"
                       IsEnabled="{Binding CanEditSelection}" />
