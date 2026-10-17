@@ -24,6 +24,15 @@ public static class MicaBackdrop
     [DllImport("dwmapi.dll")]
     private static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref Margins margins);
 
+    private const int GwlStyle = -16;
+    private const int WsSysMenu = 0x80000;
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowLong(IntPtr hwnd, int index);
+
+    [DllImport("user32.dll")]
+    private static extern int SetWindowLong(IntPtr hwnd, int index, int value);
+
     public static bool IsSupported => OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22621);
 
     /// <summary>Включает Mica; возвращает false, если система его не поддерживает.</summary>
@@ -44,6 +53,10 @@ public static class MicaBackdrop
         source.CompositionTarget.BackgroundColor = Colors.Transparent;
         var margins = new Margins { Left = -1, Right = -1, Top = -1, Bottom = -1 };
         DwmExtendFrameIntoClientArea(handle, ref margins);
+
+        // С Mica система рисует свои кнопки окна поверх кнопок ModernWpf — они накладываются друг на друга.
+        // Без стиля WS_SYSMENU остаются только кнопки ModernWpf; сворачивание, разворачивание и Alt+F4 работают как прежде.
+        SetWindowLong(handle, GwlStyle, GetWindowLong(handle, GwlStyle) & ~WsSysMenu);
 
         SetDark(handle, dark);
         var backdrop = MicaBackdrop_Mica;

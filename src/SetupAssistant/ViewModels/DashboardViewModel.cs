@@ -237,5 +237,5 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware
     private void SetupWorkplace() => _navigationService.NavigateTo<SetupWizardViewModel>();
 
     [RelayCommand]
-    private static void Exit() => System.Windows.Application.Current.Shutdown();
+    private static void Exit() => System.Windows.Application.Current.MainWindow?.Close();
 }
