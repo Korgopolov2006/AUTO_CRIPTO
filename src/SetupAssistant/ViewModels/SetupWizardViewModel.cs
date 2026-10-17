@@ -11,7 +11,7 @@ using SetupAssistant.Services.Interfaces;
 namespace SetupAssistant.ViewModels;
 
 /// <summary>Мастер настройки рабочего места: последовательная установка и проверка выбранных компонентов.</summary>
-public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
+public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware, IRefreshable
 {
     private readonly ISetupOrchestrationService _orchestrationService;
     private readonly IDialogService _dialogService;
@@ -134,6 +134,9 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
             _ = RunPreflightAsync();
         }
     }
+
+    /// <summary>F5: повторить предварительную проверку.</summary>
+    public void Refresh() => _ = RunPreflightAsync();
 
     public void OnNavigatedFrom()
     {

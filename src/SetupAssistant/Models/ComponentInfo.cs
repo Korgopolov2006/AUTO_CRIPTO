@@ -55,6 +55,9 @@ public partial class ComponentInfo : ObservableObject
     /// <summary>Показывать в обзоре на главной странице.</summary>
     public bool ShowOnDashboard { get; set; }
 
+    /// <summary>Совет «что делать» для компонента, который не установлен или требует внимания; null — совет не нужен.</summary>
+    public string? Advice => Helpers.HelpAdvisor.ForComponent(this);
+
     /// <summary>Это проверка «Компьютер в домене / MDM».</summary>
     public bool IsDeviceManagement => Name.StartsWith("Управление компьютером", StringComparison.Ordinal);
 

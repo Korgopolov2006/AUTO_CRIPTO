@@ -17,20 +17,22 @@
             <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" Style="{StaticResource MutedTextStyle}"
                        VerticalAlignment="Center" Margin="16,0,0,0" />
             <WrapPanel>
-                <ComboBox ItemsSource="{Binding LevelOptions}" SelectedValuePath="Value" DisplayMemberPath="Title"
+                <ComboBox AutomationProperties.Name="Уровень записей" ItemsSource="{Binding LevelOptions}" SelectedValuePath="Value" DisplayMemberPath="Title"
                           SelectedValue="{Binding LevelFilter}" Width="170" Margin="0,0,12,8" />
-                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Width="260" Margin="0,0,12,8"
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Width="260" AutomationProperties.Name="Поиск по журналу" Margin="0,0,12,8"
                          ui:ControlHelper.PlaceholderText="Поиск по тексту записи" />
                 <CheckBox Content="Следить за новыми" IsChecked="{Binding FollowNewEntries}" Margin="0,0,16,8" />
                 <Button Content="Копировать" Margin="0,0,8,8"
                         Command="{Binding CopyCommand}"
                         CommandParameter="{Binding SelectedItems, ElementName=EntriesGrid}" />
-                <Button Content="Открыть папку" Margin="0,0,0,8" Command="{Binding OpenLogFolderCommand}" />
+                <Button Content="Открыть папку" Margin="0,0,8,8" Command="{Binding OpenLogFolderCommand}" />
+                <Button Content="Пакет для поддержки" Margin="0,0,0,8" Command="{Binding CreateSupportBundleCommand}"
+                        ToolTip="Журналы, диагностика и сведения о системе в одном zip. PIN-коды и ключи не включаются" />
             </WrapPanel>
         </DockPanel>
 
         <Grid>
-            <DataGrid x:Name="EntriesGrid" ItemsSource="{Binding Entries}" SelectionMode="Extended"
+            <DataGrid x:Name="EntriesGrid" ItemsSource="{Binding Entries}" SelectionMode="Extended" AutomationProperties.Name="Журнал действий"
                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                 <DataGrid.Columns>
                     <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Дата и время" Binding="{Binding Timestamp, StringFormat='dd.MM.yyyy HH:mm:ss'}" Width="Auto" />

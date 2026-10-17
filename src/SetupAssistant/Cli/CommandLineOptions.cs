@@ -9,17 +9,18 @@ public sealed record CommandLineOptions(
     bool WithToken,
     bool Help,
     string? ReportPath,
+    string? SupportBundlePath,
     string? Error)
 {
     public const int ExitInvalidArguments = 4;
 
     /// <summary>Работа без окна: результат — код возврата, журнал и (по желанию) отчёт.</summary>
-    public bool IsHeadless => Check || Silent || Help || Error is not null;
+    public bool IsHeadless => Check || Silent || Help || SupportBundlePath is not null || Error is not null;
 
     public static CommandLineOptions Parse(IReadOnlyList<string> args)
     {
         bool check = false, silent = false, resume = false, reinstall = false, withToken = false, help = false;
-        string? report = null, error = null;
+        string? report = null, supportBundle = null, error = null;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -31,6 +32,17 @@ public sealed record CommandLineOptions(
                 case "--reinstall": reinstall = true; break;
                 case "--with-token": withToken = true; break;
                 case "--help" or "-h" or "/?": help = true; break;
+                case "--support-bundle":
+                    if (i + 1 < args.Count)
+                    {
+                        supportBundle = args[++i];
+                    }
+                    else
+                    {
+                        error = "После --support-bundle нужно указать путь к файлу .zip.";
+                    }
+
+                    break;
                 case "--report":
                     if (i + 1 < args.Count)
                     {
@@ -53,7 +65,7 @@ public sealed record CommandLineOptions(
             error = "Режимы --check и --silent нельзя указывать одновременно.";
         }
 
-        return new CommandLineOptions(check, silent, resume, reinstall, withToken, help, report, error);
+        return new CommandLineOptions(check, silent, resume, reinstall, withToken, help, report, supportBundle, error);
     }
 
     public const string Usage =
@@ -67,6 +79,7 @@ public sealed record CommandLineOptions(
           --silent               установить и настроить всё, что нужно, без вопросов
         Дополнительно:
           --report <файл>        сохранить отчёт (.pdf или .txt)
+          --support-bundle <zip> собрать пакет для поддержки (журналы, диагностика) без окна
           --reinstall            (--silent) переустановить и уже установленные компоненты
           --with-token           (--silent) выполнить и шаг установки сертификата с носителя
           --resume               продолжить настройку после перезагрузки (запускает окно)

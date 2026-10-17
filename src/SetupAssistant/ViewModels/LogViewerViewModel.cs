@@ -22,10 +22,13 @@ public enum LogLevelFilter
 }
 
 /// <summary>Просмотр журнала действий приложения: фильтр по уровню, поиск, слежение за новыми записями.</summary>
-public partial class LogViewerViewModel : ViewModelBase, INavigationAware
+public partial class LogViewerViewModel : ViewModelBase, INavigationAware, IRefreshable
 {
     private readonly ILoggingService _loggingService;
     private readonly INotificationService _notifications;
+    private readonly IDialogService _dialogService;
+    private readonly ISupportBundleService _supportBundle;
+    private readonly ISystemService _systemService;
     private readonly ICollectionView _view;
 
     public ObservableCollection<LogEntryModel> Entries { get; } = new();
@@ -59,8 +62,12 @@ public partial class LogViewerViewModel : ViewModelBase, INavigationAware
 
     public string LogFilePath => _loggingService.CurrentLogFilePath;
 
-    public LogViewerViewModel(ILoggingService loggingService, INotificationService notifications)
+    public LogViewerViewModel(ILoggingService loggingService, INotificationService notifications, IDialogService dialogService,
+        ISupportBundleService supportBundle, ISystemService systemService)
     {
+        _dialogService = dialogService;
+        _supportBundle = supportBundle;
+        _systemService = systemService;
         _loggingService = loggingService;
         _notifications = notifications;
 
@@ -86,6 +93,13 @@ public partial class LogViewerViewModel : ViewModelBase, INavigationAware
         {
             ScrollToEndRequested?.Invoke(this, EventArgs.Empty);
         }
+    }
+
+    /// <summary>F5: перечитать журнал.</summary>
+    public void Refresh()
+    {
+        _loggingService.EntryAdded -= OnEntryAdded;
+        OnNavigatedTo();
     }
 
     public void OnNavigatedFrom() => _loggingService.EntryAdded -= OnEntryAdded;
@@ -147,6 +161,10 @@ public partial class LogViewerViewModel : ViewModelBase, INavigationAware
         IsEmpty = shown == 0;
         CountText = shown == Entries.Count ? $"Записей: {shown}" : $"Показано {shown} из {Entries.Count}";
     }
+
+    [RelayCommand]
+    private Task CreateSupportBundleAsync() =>
+        Helpers.SupportBundleWorkflow.RunAsync(_dialogService, _notifications, _supportBundle, _systemService);
 
     [RelayCommand]
     private void OpenLogFolder()

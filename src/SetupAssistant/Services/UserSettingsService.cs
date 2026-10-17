@@ -14,9 +14,13 @@ public sealed class UserSettingsService : IUserSettingsService
     private sealed class Stored
     {
         public AppThemeMode Theme { get; set; } = AppThemeMode.System;
+        public double UiScale { get; set; } = 1.0;
+        public bool FirstRunCompleted { get; set; }
     }
 
-    private AppThemeMode _theme;
+    private readonly Stored _stored = new();
+
+    public event EventHandler? UiScaleChanged;
 
     public UserSettingsService()
     {
@@ -24,29 +28,52 @@ public sealed class UserSettingsService : IUserSettingsService
         {
             if (File.Exists(SettingsPath))
             {
-                _theme = JsonSerializer.Deserialize<Stored>(File.ReadAllText(SettingsPath))?.Theme ?? AppThemeMode.System;
+                _stored = JsonSerializer.Deserialize<Stored>(File.ReadAllText(SettingsPath)) ?? new Stored();
             }
         }
         catch (Exception)
         {
-            // Повреждённый файл настроек не мешает запуску: остаётся тема по умолчанию.
+            // Повреждённый файл настроек не мешает запуску: остаются значения по умолчанию.
         }
+
+        _stored.UiScale = Math.Clamp(_stored.UiScale, 1.0, 1.5);
     }
 
     public AppThemeMode Theme
     {
-        get => _theme;
+        get => _stored.Theme;
         set
         {
-            _theme = value;
+            _stored.Theme = value;
             Save();
             ApplyTheme();
         }
     }
 
+    public double UiScale
+    {
+        get => _stored.UiScale;
+        set
+        {
+            _stored.UiScale = Math.Clamp(value, 1.0, 1.5);
+            Save();
+            UiScaleChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    public bool FirstRunCompleted
+    {
+        get => _stored.FirstRunCompleted;
+        set
+        {
+            _stored.FirstRunCompleted = value;
+            Save();
+        }
+    }
+
     public void ApplyTheme()
     {
-        ThemeManager.Current.ApplicationTheme = _theme switch
+        ThemeManager.Current.ApplicationTheme = _stored.Theme switch
         {
             AppThemeMode.Light => ApplicationTheme.Light,
             AppThemeMode.Dark => ApplicationTheme.Dark,
@@ -59,11 +86,11 @@ public sealed class UserSettingsService : IUserSettingsService
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(new Stored { Theme = _theme }));
+            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(_stored));
         }
         catch (Exception)
         {
-            // Не удалось сохранить: тема действует до закрытия приложения.
+            // Не удалось сохранить: настройка действует до закрытия приложения.
         }
     }
 }

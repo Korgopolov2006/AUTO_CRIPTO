@@ -16,6 +16,7 @@
 
                 <TextBlock Text="Оформление" Style="{StaticResource SectionTitleStyle}" />
                 <Border Style="{StaticResource CardStyle}" Margin="0,0,0,20">
+                    <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -28,6 +29,23 @@
                         <ComboBox Grid.Column="1" Width="200" ItemsSource="{Binding ThemeOptions}"
                                   SelectedValuePath="Value" DisplayMemberPath="Title" SelectedValue="{Binding SelectedTheme}" />
                     </Grid>
+                    <Border Height="1" Margin="0,14" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Размер интерфейса" FontWeight="SemiBold" />
+                            <TextBlock Text="Увеличивает весь интерфейс: удобно при плохом зрении и на небольших экранах." Style="{StaticResource MutedTextStyle}" Margin="0,2,0,0" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" Width="200" ItemsSource="{Binding ScaleOptions}"
+                                  SelectedValuePath="Value" DisplayMemberPath="Title" SelectedValue="{Binding SelectedScale}"
+                                  AutomationProperties.Name="Размер интерфейса" />
+                    </Grid>
+                    <Border Height="1" Margin="0,14" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+                    <Button Content="Показать приветствие снова" HorizontalAlignment="Left" Command="{Binding ShowWelcomeCommand}" />
+                    </StackPanel>
                 </Border>
 
                 <TextBlock Text="О программе" Style="{StaticResource SectionTitleStyle}" />
@@ -58,7 +76,9 @@
                         </Grid>
                         <WrapPanel Margin="0,12,0,0">
                             <Button Content="Копировать сведения" Margin="0,0,8,0" Command="{Binding CopyAboutInfoCommand}" />
-                            <Button Content="Открыть папку журналов" Command="{Binding OpenLogFolderCommand}" />
+                            <Button Content="Открыть папку журналов" Margin="0,0,8,0" Command="{Binding OpenLogFolderCommand}" />
+                            <Button Content="Пакет для поддержки" Command="{Binding CreateSupportBundleCommand}"
+                                    ToolTip="Журналы, диагностика и сведения о системе в одном zip. PIN-коды и ключи не включаются" />
                         </WrapPanel>
                     </StackPanel>
                 </Border>

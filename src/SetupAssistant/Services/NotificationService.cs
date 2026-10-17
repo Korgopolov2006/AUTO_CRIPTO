@@ -13,6 +13,8 @@ public sealed class NotificationService : INotificationService
 
     public ObservableCollection<ToastItem> Items { get; } = new();
 
+    public event EventHandler<ToastItem>? ToastShown;
+
     public void Show(ToastKind kind, string title, string? message = null)
     {
         var dispatcher = Application.Current.Dispatcher;
@@ -28,6 +30,8 @@ public sealed class NotificationService : INotificationService
         {
             Items.RemoveAt(0);
         }
+
+        ToastShown?.Invoke(this, item);
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(kind is ToastKind.Warning or ToastKind.Error ? 8 : 5) };
         timer.Tick += (_, _) =>

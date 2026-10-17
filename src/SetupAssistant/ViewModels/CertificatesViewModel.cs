@@ -11,7 +11,7 @@ using SetupAssistant.Services.Interfaces;
 namespace SetupAssistant.ViewModels;
 
 /// <summary>Просмотр и установка сертификатов электронной подписи; следит за подключением носителя, пока открыт.</summary>
-public partial class CertificatesViewModel : ViewModelBase, INavigationAware
+public partial class CertificatesViewModel : ViewModelBase, INavigationAware, IRefreshable
 {
     private readonly ICertificateService _certificateService;
     private readonly ITokenService _tokenService;
@@ -76,6 +76,13 @@ public partial class CertificatesViewModel : ViewModelBase, INavigationAware
     {
         _ = CheckTokenAsync(notify: false);
         _tokenTimer.Start();
+    }
+
+    /// <summary>F5: обновить список сертификатов и состояние носителя.</summary>
+    public void Refresh()
+    {
+        LoadCertificates();
+        _ = CheckTokenAsync(notify: false);
     }
 
     public void OnNavigatedFrom() => _tokenTimer.Stop();

@@ -18,6 +18,9 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly IExtensionUpdateService _extensionUpdateService;
     private readonly IUserSettingsService _userSettings;
     private readonly ILoggingService _logger;
+    private readonly ISupportBundleService _supportBundle;
+    private readonly ISystemService _systemService;
+    private readonly INavigationService _navigationService;
 
     [ObservableProperty]
     private AppConfig _config;
@@ -49,8 +52,14 @@ public partial class SettingsViewModel : ViewModelBase
         INotificationService notifications,
         IExtensionUpdateService extensionUpdateService,
         IUserSettingsService userSettings,
-        ILoggingService logger)
+        ILoggingService logger,
+        ISupportBundleService supportBundle,
+        ISystemService systemService,
+        INavigationService navigationService)
     {
+        _navigationService = navigationService;
+        _supportBundle = supportBundle;
+        _systemService = systemService;
         _configService = configService;
         _dialogService = dialogService;
         _notifications = notifications;
@@ -59,9 +68,32 @@ public partial class SettingsViewModel : ViewModelBase
         _logger = logger;
         _config = configService.Current;
         _selectedTheme = userSettings.Theme;
+        _selectedScale = userSettings.UiScale;
     }
 
     partial void OnSelectedThemeChanged(AppThemeMode value) => _userSettings.Theme = value;
+
+    public IReadOnlyList<ScaleOption> ScaleOptions { get; } = new[]
+    {
+        new ScaleOption(1.0, "100% — обычный"),
+        new ScaleOption(1.15, "115%"),
+        new ScaleOption(1.3, "130%"),
+        new ScaleOption(1.5, "150% — крупный")
+    };
+
+    /// <summary>Масштаб всего интерфейса: помогает при плохом зрении и на мелких экранах.</summary>
+    [ObservableProperty]
+    private double _selectedScale = 1.0;
+
+    partial void OnSelectedScaleChanged(double value) => _userSettings.UiScale = value;
+
+    /// <summary>Показать приветственный мастер первого запуска ещё раз.</summary>
+    [RelayCommand]
+    private void ShowWelcome()
+    {
+        _userSettings.FirstRunCompleted = false;
+        _navigationService.NavigateTo<FirstRunViewModel>();
+    }
 
     [RelayCommand]
     private async Task CheckExtensionUpdatesAsync()
@@ -95,6 +127,10 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
+    [RelayCommand]
+    private Task CreateSupportBundleAsync() =>
+        Helpers.SupportBundleWorkflow.RunAsync(_dialogService, _notifications, _supportBundle, _systemService);
+
     /// <summary>Сведения для обращения в поддержку: версия, система, пути.</summary>
     [RelayCommand]
     private void CopyAboutInfo()
@@ -123,3 +159,6 @@ public partial class SettingsViewModel : ViewModelBase
 
 /// <summary>Пункт выбора темы оформления.</summary>
 public sealed record ThemeOption(AppThemeMode Value, string Title);
+
+/// <summary>Пункт выбора масштаба интерфейса.</summary>
+public sealed record ScaleOption(double Value, string Title);

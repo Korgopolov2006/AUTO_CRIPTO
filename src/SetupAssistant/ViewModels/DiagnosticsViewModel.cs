@@ -10,7 +10,7 @@ using SetupAssistant.Services.Interfaces;
 namespace SetupAssistant.ViewModels;
 
 /// <summary>Раздел «Диагностика»: полная проверка рабочего места с группами, фильтром и исправлением проблем.</summary>
-public partial class DiagnosticsViewModel : ViewModelBase, INavigationAware
+public partial class DiagnosticsViewModel : ViewModelBase, INavigationAware, IRefreshable
 {
     private readonly IWorkplaceStatusService _statusService;
     private readonly IReportService _reportService;
@@ -59,6 +59,12 @@ public partial class DiagnosticsViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private string _emptyHint = "Нажмите «Запустить диагностику»: проверка занимает несколько секунд и ничего не устанавливает.";
 
+    /// <summary>Идёт проверка и результатов ещё нет: вместо пустого экрана показываем «скелетон».</summary>
+    public bool ShowSkeleton => IsBusy && Components.Count == 0;
+
+    /// <summary>Пустое состояние показываем только когда проверка не идёт.</summary>
+    public bool ShowEmpty => IsEmpty && !IsBusy;
+
     public DiagnosticsViewModel(
         IWorkplaceStatusService statusService,
         IReportService reportService,
@@ -83,6 +89,15 @@ public partial class DiagnosticsViewModel : ViewModelBase, INavigationAware
         _view.SortDescriptions.Add(new SortDescription(nameof(ComponentInfo.CategoryOrder), ListSortDirection.Ascending));
         _view.Filter = item => !ShowOnlyProblems || item is ComponentInfo { IsProblem: true };
 
+        PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(IsBusy) or nameof(IsEmpty))
+            {
+                OnPropertyChanged(nameof(ShowSkeleton));
+                OnPropertyChanged(nameof(ShowEmpty));
+            }
+        };
+
         _statusService.Changed += (_, _) => OnStatusChanged();
         LoadResults();
     }
@@ -100,6 +115,9 @@ public partial class DiagnosticsViewModel : ViewModelBase, INavigationAware
             LoadResults();
         }
     }
+
+    /// <summary>F5: запустить диагностику заново.</summary>
+    public void Refresh() => _ = RunDiagnosticAsync();
 
     public void OnNavigatedFrom()
     {

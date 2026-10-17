@@ -94,6 +94,8 @@ public partial class App : Application
         services.AddSingleton<INativeMessagingService, NativeMessagingService>();
         services.AddSingleton<ITokenService, TokenService>();
         services.AddSingleton<ITokenPinService, TokenPinService>();
+        services.AddSingleton<ISignatureTestService, SignatureTestService>();
+        services.AddSingleton<ISupportBundleService, SupportBundleService>();
         services.AddSingleton<IDiagnosticService, DiagnosticService>();
         services.AddSingleton<IWorkplaceStatusService, WorkplaceStatusService>();
         services.AddSingleton<IPreflightService, PreflightService>();
@@ -124,6 +126,8 @@ public partial class App : Application
         services.AddSingleton<UninstallViewModel>();
         services.AddSingleton<CertificatesViewModel>();
         services.AddSingleton<TokenPinViewModel>();
+        services.AddSingleton<SignatureTestViewModel>();
+        services.AddSingleton<FirstRunViewModel>();
         services.AddTransient<LogViewerViewModel>();
         services.AddTransient<SettingsViewModel>();
 
