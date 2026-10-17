@@ -127,6 +127,7 @@ public sealed class DialogService : IDialogService
         private readonly CancellationTokenSource _cancelled = new();
         private readonly ContentDialog _dialog;
         private readonly DispatcherTimer? _delayTimer;
+        private readonly TextBlock _messageText;
         private bool _disposed;
         private bool _shown;
 
@@ -135,7 +136,8 @@ public sealed class DialogService : IDialogService
             _owner = owner;
             var content = new StackPanel { Orientation = Orientation.Horizontal };
             content.Children.Add(new ProgressRing { IsActive = true, Width = 32, Height = 32, Margin = new Thickness(0, 0, 16, 0), VerticalAlignment = VerticalAlignment.Top });
-            content.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 420, VerticalAlignment = VerticalAlignment.Center });
+            _messageText = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, MaxWidth = 420, VerticalAlignment = VerticalAlignment.Center };
+            content.Children.Add(_messageText);
 
             _dialog = new ContentDialog
             {
@@ -171,6 +173,19 @@ public sealed class DialogService : IDialogService
         }
 
         public CancellationToken Cancelled => _cancelled.Token;
+
+        public void UpdateMessage(string message)
+        {
+            var dispatcher = Application.Current.Dispatcher;
+            if (dispatcher.CheckAccess())
+            {
+                _messageText.Text = message;
+            }
+            else
+            {
+                dispatcher.BeginInvoke(() => _messageText.Text = message);
+            }
+        }
 
         private void ShowNow()
         {

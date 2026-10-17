@@ -40,6 +40,10 @@ public sealed class SilentDialogService : IDialogService
     {
         public CancellationToken Cancelled => CancellationToken.None;
 
+        public void UpdateMessage(string message)
+        {
+        }
+
         public void Dispose()
         {
         }
