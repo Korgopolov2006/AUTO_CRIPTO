@@ -1,11 +1,100 @@
 <Window x:Class="SetupAssistant.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.modernwpf.com/2019"
+        xmlns:vm="clr-namespace:SetupAssistant.ViewModels"
+        ui:WindowHelper.UseModernWindowStyle="True"
         Title="Помощник настройки рабочего места для электронной подписи"
-        Height="760" Width="1180"
-        MinHeight="600" MinWidth="900"
-        WindowStartupLocation="CenterScreen">
+        Height="780" Width="1240"
+        MinHeight="620" MinWidth="720"
+        WindowStartupLocation="CenterScreen"
+        Closing="OnWindowClosing">
+
+    <Window.Resources>
+        <!-- На Windows 11 фон окна — Mica; панель и область страниц не должны его перекрывать (см. MainWindow.xaml.cs) -->
+        <SolidColorBrush x:Key="NavigationViewDefaultPaneBackground" Color="#00000000" />
+        <SolidColorBrush x:Key="NavigationViewExpandedPaneBackground" Color="#00000000" />
+        <SolidColorBrush x:Key="NavigationViewContentBackground" Color="#00000000" />
+    </Window.Resources>
+
+    <Window.TaskbarItemInfo>
+        <TaskbarItemInfo ProgressState="{Binding TaskbarState}" ProgressValue="{Binding TaskbarProgress}" />
+    </Window.TaskbarItemInfo>
+
     <Grid>
-        <ContentControl Content="{Binding CurrentPage}" />
+        <ui:NavigationView x:Name="Navigation"
+                           PaneDisplayMode="Auto"
+                           OpenPaneLength="260"
+                           ExpandedModeThresholdWidth="1100"
+                           IsBackButtonVisible="Collapsed"
+                           IsSettingsVisible="False"
+                           SelectionChanged="OnNavigationSelectionChanged">
+            <ui:NavigationView.MenuItems>
+                <ui:NavigationViewItem Content="Главная" Tag="{x:Type vm:DashboardViewModel}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xE80F;" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItemSeparator />
+                <ui:NavigationViewItem Content="Диагностика" Tag="{x:Type vm:DiagnosticsViewModel}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xE9D9;" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Tag="{x:Type vm:SetupWizardViewModel}" AutomationProperties.Name="Настройка">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xE768;" />
+                    </ui:NavigationViewItem.Icon>
+                    <Grid HorizontalAlignment="Stretch" MinWidth="170">
+                        <TextBlock Text="Настройка" VerticalAlignment="Center" />
+                        <ui:ProgressRing Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                         IsActive="{Binding IsSetupRunning}"
+                                         Visibility="{Binding IsSetupRunning, Converter={StaticResource BoolToVisibility}}" />
+                    </Grid>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Tag="{x:Type vm:UninstallViewModel}" AutomationProperties.Name="Удаление">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xE74D;" />
+                    </ui:NavigationViewItem.Icon>
+                    <Grid HorizontalAlignment="Stretch" MinWidth="170">
+                        <TextBlock Text="Удаление" VerticalAlignment="Center" />
+                        <ui:ProgressRing Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                         IsActive="{Binding IsUninstallRunning}"
+                                         Visibility="{Binding IsUninstallRunning, Converter={StaticResource BoolToVisibility}}" />
+                    </Grid>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItemSeparator />
+                <ui:NavigationViewItem Content="Сертификаты" Tag="{x:Type vm:CertificatesViewModel}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xEB95;" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Журнал" Tag="{x:Type vm:LogViewerViewModel}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xE8A5;" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+            </ui:NavigationView.MenuItems>
+
+            <ui:NavigationView.FooterMenuItems>
+                <ui:NavigationViewItem Content="Настройки" Tag="{x:Type vm:SettingsViewModel}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xE713;" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
+            </ui:NavigationView.FooterMenuItems>
+
+            <ContentControl x:Name="PageHost" Content="{Binding CurrentPage}" IsTabStop="False"
+                            RenderTransformOrigin="0.5,0.5">
+                <ContentControl.RenderTransform>
+                    <TranslateTransform x:Name="PageShift" />
+                </ContentControl.RenderTransform>
+            </ContentControl>
+        </ui:NavigationView>
+
+        <!-- Неблокирующие уведомления -->
+        <ItemsControl ItemsSource="{Binding Toasts}" ItemTemplate="{StaticResource ToastTemplate}"
+                      HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,20"
+                      Focusable="False" />
     </Grid>
 </Window>

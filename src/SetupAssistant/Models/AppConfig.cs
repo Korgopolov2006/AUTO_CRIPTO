@@ -13,6 +13,7 @@ public sealed class AppConfig
     public RequiredComponentsConfig RequiredComponents { get; set; } = new();
     public ExtensionsConfig Extensions { get; set; } = new();
     public NativeMessagingConfig NativeMessaging { get; set; } = new();
+    public UninstallConfig Uninstall { get; set; } = new();
     public List<CaCertificateDefinition> CaCertificates { get; set; } = new();
     public LoggingConfig Logging { get; set; } = new();
     public CheckSettingsConfig CheckSettings { get; set; } = new();
@@ -38,6 +39,18 @@ public sealed class InstallerDefinition
 
     /// <summary>Если задан, DownloadUrl — адрес GitHub API «latest release», а это regex имени файла-ассета.</summary>
     public string DownloadAssetRegex { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Адрес последней версии для утилиты обновления ExtensionUpdater: прямая ссылка либо GitHub API (при заданном
+    /// DownloadAssetRegex). Если пусто — берётся DownloadUrl; если пусто и там — дистрибутив зафиксирован и не обновляется.
+    /// </summary>
+    public string UpdateUrl { get; set; } = string.Empty;
+
+    /// <summary>Страница, которую нужно открыть перед скачиванием: сайт выдаёт файл только при наличии сессионной куки.</summary>
+    public string UpdateWarmupUrl { get; set; } = string.Empty;
+
+    /// <summary>Подстрока имени владельца цифровой подписи; скачанный файл с другой или недействительной подписью отвергается.</summary>
+    public string ExpectedSigner { get; set; } = string.Empty;
 
     public InstallerKind Kind { get; set; } = InstallerKind.Exe;
     public string SilentArgs { get; set; } = string.Empty;
@@ -135,12 +148,11 @@ public sealed class ExtensionsConfig
     /// <summary>Локальный репозиторий, куда копируются .crx и updates.xml (должен переживать удаление программы).</summary>
     public string RepositoryDirectory { get; set; } = @"%ProgramData%\SetupAssistant\Extensions";
 
-    /// <summary>Ветки HKLM, в которые записывается политика принудительной установки (Chrome, Chromium, Chromium GOST).</summary>
+    /// <summary>Ветки HKLM, в которые записывается политика принудительной установки (Google Chrome и Chromium, в том числе Chromium GOST).</summary>
     public List<string> PolicyRegistryKeys { get; set; } = new()
     {
         @"SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist",
-        @"SOFTWARE\Policies\Chromium\ExtensionInstallForcelist",
-        @"SOFTWARE\Policies\ChromiumGost\ExtensionInstallForcelist"
+        @"SOFTWARE\Policies\Chromium\ExtensionInstallForcelist"
     };
 
     /// <summary>Проверять новые версии расширений в фоне при запуске (без интернета проверка тихо пропускается).</summary>
@@ -183,6 +195,36 @@ public sealed class NativeMessagingConfig
     };
 
     public List<NativeHostDefinition> Hosts { get; set; } = new();
+}
+
+/// <summary>Компонент, который удаляет раздел «Удаление»: находится в реестре по названию и удаляется штатным деинсталлятором.</summary>
+public sealed class UninstallProductDefinition
+{
+    public string Name { get; set; } = string.Empty;
+
+    /// <summary>Части отображаемого имени в «Программах и компонентах» (первое совпадение выигрывает).</summary>
+    public List<string> DisplayNamePatterns { get; set; } = new();
+
+    /// <summary>Msi — msiexec /x по коду продукта; Exe — команда из UninstallString реестра плюс Args.</summary>
+    public InstallerKind Kind { get; set; } = InstallerKind.Msi;
+
+    /// <summary>Дополнительные ключи тихого удаления.</summary>
+    public string Args { get; set; } = string.Empty;
+
+    /// <summary>Если задано, перед удалением завершаются процессы, чей путь содержит эту подстроку (браузер, службы плагина).</summary>
+    public string ProcessPathContains { get; set; } = string.Empty;
+}
+
+public sealed class UninstallConfig
+{
+    /// <summary>Порядок — обратный установке: сначала браузер и плагины, затем драйверы, последним КриптоПро CSP.</summary>
+    public List<UninstallProductDefinition> Products { get; set; } = new();
+
+    /// <summary>Остаточные папки после удаления; допускается «*» в последнем сегменте пути.</summary>
+    public List<string> LeftoverPaths { get; set; } = new();
+
+    /// <summary>Остаточные ветки реестра в формате HKCU\... или HKLM\... (ключи КриптоПро с контейнерами сюда не добавляются).</summary>
+    public List<string> LeftoverRegistryKeys { get; set; } = new();
 }
 
 public sealed class LoggingConfig

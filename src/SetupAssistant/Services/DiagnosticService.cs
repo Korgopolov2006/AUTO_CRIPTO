@@ -13,6 +13,7 @@ public sealed class DiagnosticService : IDiagnosticService
     private readonly ICertificateService _certificateService;
     private readonly INativeMessagingService _nativeMessagingService;
     private readonly ICaCertificateService _caCertificateService;
+    private readonly IConfigService _configService;
     private readonly ILoggingService _logger;
 
     public DiagnosticService(
@@ -23,8 +24,10 @@ public sealed class DiagnosticService : IDiagnosticService
         ICertificateService certificateService,
         INativeMessagingService nativeMessagingService,
         ICaCertificateService caCertificateService,
+        IConfigService configService,
         ILoggingService logger)
     {
+        _configService = configService;
         _nativeMessagingService = nativeMessagingService;
         _caCertificateService = caCertificateService;
         _cryptoProService = cryptoProService;
@@ -76,6 +79,8 @@ public sealed class DiagnosticService : IDiagnosticService
                 _logger.Info($"Диагностика: {extension.Name}", extension.Status.ToString());
             }
 
+            Check("Проверка управления компьютером...", _extensionService.CheckDeviceManagement);
+
             foreach (var host in _nativeMessagingService.CheckHosts())
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -105,6 +110,11 @@ public sealed class DiagnosticService : IDiagnosticService
                 InstalledVersion = connectedTokens.Count > 0 ? connectedTokens[0].DeviceName : null,
                 ErrorMessage = connectedTokens.Count > 0 ? null : "Носитель не подключен"
             });
+
+            foreach (var component in results)
+            {
+                ComponentCatalog.Classify(component, _configService.Current);
+            }
 
             _logger.Info("Диагностика", $"Диагностика завершена. Проверено компонентов: {results.Count}");
             return results;

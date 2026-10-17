@@ -1,51 +1,151 @@
 <UserControl x:Class="SetupAssistant.Views.DiagnosticsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             xmlns:helpers="clr-namespace:SetupAssistant.Helpers"
-             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
-             Background="{DynamicResource BackgroundBrush}">
-    <UserControl.Resources>
-        <helpers:StatusLevelToBrushConverter x:Key="StatusToBrush" />
-        <helpers:StatusLevelToTextConverter x:Key="StatusToText" />
-        <helpers:BoolToVisibilityConverter x:Key="BoolToVisibility" />
-    </UserControl.Resources>
+             xmlns:models="clr-namespace:SetupAssistant.Models"
+             xmlns:controls="clr-namespace:SetupAssistant.Controls"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700">
 
-    <DockPanel Margin="32">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,16">
-            <Button Content="← Назад" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding GoBackCommand}" Margin="0,0,12,0" />
-            <TextBlock Text="Диагностика рабочего места" Style="{StaticResource PageTitleStyle}" Margin="0" VerticalAlignment="Center" />
+    <DockPanel Margin="36,28,36,28">
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="Диагностика рабочего места" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="Проверка установленных компонентов и их версий" Style="{StaticResource PageSubtitleStyle}" />
         </StackPanel>
 
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,16">
-            <Button Content="Запустить диагностику" Style="{StaticResource PrimaryButtonStyle}"
+        <!-- Действия -->
+        <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+            <Button Content="Запустить диагностику" Style="{StaticResource AccentButtonStyle}" Margin="0,0,12,8"
                     Command="{Binding RunDiagnosticCommand}" />
-            <Button Content="Экспорт отчёта" Style="{StaticResource SecondaryButtonStyle}" Margin="12,0,0,0"
-                    Command="{Binding ExportReportCommand}" />
-            <TextBlock Text="{Binding CurrentStepText}" VerticalAlignment="Center" Margin="16,0,0,0"
+            <Button Content="Исправить найденное" Margin="0,0,12,8" Command="{Binding FixAllCommand}">
+                <Button.Style>
+                    <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding FixableCount, Converter={StaticResource IsPositive}}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+            <Button Content="Экспорт отчёта" Margin="0,0,12,8" Command="{Binding ExportReportCommand}" />
+            <Button Content="Копировать список" Margin="0,0,12,8" Command="{Binding CopyAllCommand}" />
+            <TextBlock Text="{Binding CurrentStepText}" VerticalAlignment="Center" Margin="4,0,0,8"
                        Style="{StaticResource MutedTextStyle}" />
-        </StackPanel>
+        </WrapPanel>
 
-        <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" Margin="0,0,0,16" Height="4"
+        <!-- Итоги и фильтр -->
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal">
+                <Border Style="{StaticResource CardStyle}" Padding="12,6" Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:FontIcon Glyph="&#xE73E;" FontSize="14" Foreground="{StaticResource StatusOkBrush}" Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding OkCount, StringFormat='Готово: {0}'}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardStyle}" Padding="12,6" Margin="0,0,8,0">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:FontIcon Glyph="&#xE7BA;" FontSize="14" Foreground="{StaticResource StatusWarningBrush}" Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding WarningCount, StringFormat='Предупреждения: {0}'}" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardStyle}" Padding="12,6">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:FontIcon Glyph="&#xEA39;" FontSize="14" Foreground="{StaticResource StatusErrorBrush}" Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding ErrorCount, StringFormat='Ошибки: {0}'}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+            <ToggleButton Grid.Column="1" Content="Только проблемы" IsChecked="{Binding ShowOnlyProblems}" Padding="14,5" />
+        </Grid>
+
+        <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" Margin="0,0,0,12"
                      Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
 
-        <DataGrid DockPanel.Dock="Top" ItemsSource="{Binding Components}" MaxHeight="560">
-            <DataGrid.Columns>
-                <DataGridTemplateColumn Header="" Width="30">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate>
-                            <Ellipse Style="{StaticResource StatusDotStyle}"
-                                     Fill="{Binding Status, Converter={StaticResource StatusToBrush}}" />
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-                <DataGridTextColumn Header="Компонент" Binding="{Binding Name}" Width="2*" />
-                <DataGridTextColumn Header="Статус" Binding="{Binding Status, Converter={StaticResource StatusToText}}" Width="1.2*" />
-                <DataGridTextColumn Header="Найденная версия" Binding="{Binding InstalledVersion}" Width="1.3*" />
-                <DataGridTextColumn Header="Рекомендуемая версия" Binding="{Binding RecommendedVersion}" Width="1.3*" />
-                <DataGridTextColumn Header="Описание / ошибка" Binding="{Binding ErrorMessage}" Width="2.5*" />
-            </DataGrid.Columns>
-        </DataGrid>
+        <Grid>
+            <DataGrid x:Name="Grid" ItemsSource="{Binding Components}" SelectionMode="Single"
+                      Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
+                <DataGrid.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.ContainerStyle>
+                            <Style TargetType="GroupItem">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="GroupItem">
+                                            <Expander IsExpanded="True" Margin="0,0,0,6" HorizontalContentAlignment="Stretch">
+                                                <Expander.Header>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                                        <TextBlock Text="{Binding ItemCount, StringFormat='  ·  {0}'}"
+                                                                   Style="{StaticResource MutedTextStyle}" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Expander.Header>
+                                                <ItemsPresenter />
+                                            </Expander>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </GroupStyle.ContainerStyle>
+                    </GroupStyle>
+                </DataGrid.GroupStyle>
+
+                <DataGrid.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Копировать описание"
+                                  Command="{Binding PlacementTarget.DataContext.CopyDetailsCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                        <MenuItem Header="Исправить"
+                                  Command="{Binding PlacementTarget.DataContext.FixComponentCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="" Width="44">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <ContentPresenter Content="{Binding Status}" ContentTemplate="{StaticResource StatusIconTemplate}" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Компонент" Binding="{Binding Name}" Width="2*" />
+                    <DataGridTextColumn Header="Статус" Binding="{Binding Status, Converter={StaticResource StatusToText}}" Width="1.2*" />
+                    <DataGridTextColumn Header="Найденная версия" Binding="{Binding InstalledVersion}" Width="1.3*" />
+                    <DataGridTextColumn Header="Рекомендуемая версия" Binding="{Binding RecommendedVersion}" Width="1.3*" />
+                    <DataGridTextColumn Header="Описание / ошибка" Binding="{Binding ErrorMessage}" Width="2.5*" />
+                    <DataGridTemplateColumn Header="" Width="Auto">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="Исправить" Padding="12,2" Margin="4,0"
+                                        Command="{Binding DataContext.FixComponentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding CanFix}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <controls:EmptyState Glyph="&#xE9D9;" Title="{Binding EmptyText}"
+                                 Hint="{Binding EmptyHint}"
+                                 Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+        </Grid>
     </DockPanel>
 </UserControl>

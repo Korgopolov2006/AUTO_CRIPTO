@@ -14,6 +14,12 @@ public interface IExtensionService
     /// <summary>Проверяет каждое расширение из конфигурации: наличие в политике и наличие .crx в репозитории.</summary>
     IReadOnlyList<ComponentInfo> CheckAllExtensions();
 
+    /// <summary>
+    /// Chromium устанавливает расширения не из магазина через политику только на управляемых компьютерах
+    /// (домен Active Directory, Azure AD или MDM); на остальных политика блокируется.
+    /// </summary>
+    ComponentInfo CheckDeviceManagement();
+
     ComponentInfo CheckCryptoProExtension();
 
     ComponentInfo CheckKonturExtension();

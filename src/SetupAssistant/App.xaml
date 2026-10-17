@@ -1,13 +1,16 @@
 <Application x:Class="SetupAssistant.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
              xmlns:local="clr-namespace:SetupAssistant"
              xmlns:vm="clr-namespace:SetupAssistant.ViewModels"
              xmlns:views="clr-namespace:SetupAssistant.Views">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Resources/Themes/LightTheme.xaml" />
+                <ui:ThemeResources AccentColor="#0F6CBD" />
+                <ui:XamlControlsResources />
+                <ResourceDictionary Source="Resources/Themes/AppStyles.xaml" />
             </ResourceDictionary.MergedDictionaries>
 
             <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
@@ -18,6 +21,9 @@
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:SetupWizardViewModel}">
                 <views:SetupWizardView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:UninstallViewModel}">
+                <views:UninstallView />
             </DataTemplate>
             <DataTemplate DataType="{x:Type vm:CertificatesViewModel}">
                 <views:CertificatesView />

@@ -1,7 +1,8 @@
 namespace SetupAssistant.Services.Interfaces;
 
 /// <summary>Сведения об установленном ПО, найденные через ветки реестра Windows Uninstall.</summary>
-public sealed record InstalledProductInfo(string DisplayName, string? DisplayVersion, string? InstallLocation, string? UninstallString);
+public sealed record InstalledProductInfo(
+    string DisplayName, string? DisplayVersion, string? InstallLocation, string? UninstallString, string? KeyName = null);
 
 /// <summary>Проверка наличия установленного ПО через реестр Windows.</summary>
 public interface IRegistryService

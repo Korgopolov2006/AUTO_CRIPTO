@@ -7,7 +7,10 @@ public enum StatusLevel
     InProgress,
     Ok,
     Warning,
-    Error
+    Error,
+
+    /// <summary>Шаг не выполнялся (не выбран пользователем).</summary>
+    Skipped
 }
 
 /// <summary>Тип компонента рабочего места, участвующего в диагностике/установке.</summary>
@@ -76,5 +79,12 @@ public enum SetupStepKind
     InstallBrowserExtensions,
     InstallCaCertificates,
     InstallTokenCertificates,
-    FinalDiagnostic
+    FinalDiagnostic,
+
+    // Откат настройки (раздел «Удаление»)
+    UninstallProduct,
+    RemoveExtensionPolicy,
+    RemovePersonalCertificates,
+    RemoveLeftovers,
+    RemoveAppCache
 }

@@ -1,0 +1,19 @@
+<UserControl x:Class="SetupAssistant.Controls.EmptyState"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             x:Name="Root">
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="420" Margin="24">
+        <Border Width="72" Height="72" CornerRadius="36" HorizontalAlignment="Center"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+            <ui:FontIcon Glyph="{Binding Glyph, ElementName=Root}" FontSize="30"
+                         Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        </Border>
+        <TextBlock Text="{Binding Title, ElementName=Root}" HorizontalAlignment="Center" TextAlignment="Center"
+                   FontSize="16" FontWeight="SemiBold" Margin="0,16,0,0" TextWrapping="Wrap" />
+        <TextBlock Text="{Binding Hint, ElementName=Root}" HorizontalAlignment="Center" TextAlignment="Center"
+                   Margin="0,6,0,0" TextWrapping="Wrap"
+                   Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        <ContentPresenter Content="{Binding Action, ElementName=Root}" HorizontalAlignment="Center" Margin="0,16,0,0" />
+    </StackPanel>
+</UserControl>

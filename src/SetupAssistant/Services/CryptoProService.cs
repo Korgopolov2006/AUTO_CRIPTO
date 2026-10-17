@@ -11,6 +11,11 @@ public sealed class CryptoProService : ICryptoProService
     private const uint ProviderTypeGost2012_256 = 80;
     private const uint ProviderTypeGost2012_512 = 81;
 
+    // Коды подсистемы смарт-карт Windows: ресурс-менеджер не запущен / остановлен / нет считывателей.
+    private const uint ScardNoService = 0x8010001D;
+    private const uint ScardServiceStopped = 0x8010001E;
+    private const uint ScardNoReadersAvailable = 0x8010002E;
+
     private static readonly TimeSpan CsptestQueryTimeout = TimeSpan.FromSeconds(30);
 
     private static readonly string[] KontinentApPatterns = { "Континент-АП", "Континент АП", "Continent-AP", "Continent AP" };
@@ -177,7 +182,9 @@ public sealed class CryptoProService : ICryptoProService
             info.Status = StatusLevel.Warning;
             info.ErrorMessage = run.TimedOut
                 ? "Превышено время ожидания при получении списка считывателей"
-                : $"Не удалось получить список считывателей (код {run.ExitCode})";
+                : (uint)run.ExitCode is ScardNoService or ScardServiceStopped or ScardNoReadersAvailable
+                    ? "Считыватели не обнаружены: подключите носитель (служба «Смарт-карты» запускается вместе с ним)"
+                    : $"Не удалось получить список считывателей (код 0x{(uint)run.ExitCode:X8})";
             return info;
         }
 

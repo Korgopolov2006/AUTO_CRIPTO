@@ -30,6 +30,11 @@ public sealed class CertificateInfo
 
     public string ValidationSummary => string.IsNullOrEmpty(ValidationMessage) ? "Проверка пройдена" : ValidationMessage;
 
+    /// <summary>Срок действия для индикатора в списке: Ok / Warning (скоро истекает) / Error (истёк). Заполняет экран сертификатов.</summary>
+    public StatusLevel ExpiryLevel { get; set; } = StatusLevel.NotChecked;
+
+    public string ExpiryText { get; set; } = string.Empty;
+
     public bool IsExpired => DateTime.Now > ValidTo;
     public int DaysUntilExpiry => (ValidTo - DateTime.Now).Days;
 }

@@ -19,4 +19,35 @@ public partial class SetupStepModel : ObservableObject
 
     [ObservableProperty]
     private bool _isActive;
+
+    /// <summary>Шаг участвует в запуске (для шагов установки пользователь может снять флажок).</summary>
+    [ObservableProperty]
+    private bool _isSelected = true;
+
+    /// <summary>Пользователь может менять <see cref="IsSelected"/> (только у шагов установки и только до запуска).</summary>
+    [ObservableProperty]
+    private bool _isSelectable;
+
+    /// <summary>Длинное описание шага развёрнуто.</summary>
+    [ObservableProperty]
+    private bool _isExpanded;
+
+    /// <summary>Шаг завершился, но для окончания установки нужна перезагрузка.</summary>
+    [ObservableProperty]
+    private bool _needsReboot;
+
+    /// <summary>Для шагов проверки: шаг установки, к которому относится проверка.</summary>
+    public SetupStepKind? PairedInstallKind { get; set; }
+
+    public bool HasLongDetails => (Details?.Length ?? 0) > 110;
+
+    partial void OnDetailsChanged(string? value) => OnPropertyChanged(nameof(HasLongDetails));
+
+    /// <summary>Шаг можно запустить заново: он завершился проблемой.</summary>
+    public bool CanRetry => IsSelectable && Status is StatusLevel.Warning or StatusLevel.Error;
+
+    partial void OnStatusChanged(StatusLevel value) => OnPropertyChanged(nameof(CanRetry));
+
+    /// <summary>Идентификатор объекта шага (например, имя удаляемого продукта из конфигурации).</summary>
+    public string? Key { get; set; }
 }
