@@ -24,6 +24,9 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
     private readonly IVersionService _versionService;
     private SetupRunOptions _options = new();
 
+    /// <summary>Установки, фактически выполненные в текущем запуске: если проверка после них не прошла, вероятно, нужна перезагрузка.</summary>
+    private readonly HashSet<SetupStepKind> _installedInThisRun = new();
+
     public SetupOrchestrationService(
         IConfigService configService,
         IInstallerService installerService,
@@ -60,6 +63,7 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
     {
         var installers = _configService.Current.Installers;
         _options = options ?? new SetupRunOptions();
+        _installedInThisRun.Clear();
 
         foreach (var step in steps)
         {
@@ -81,6 +85,7 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
             try
             {
                 await ExecuteStepAsync(step, installers, cancellationToken);
+                MarkRebootIfLikely(step);
             }
             catch (OperationCanceledException)
             {
@@ -191,6 +196,27 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         }
     }
 
+    /// <summary>
+    /// Проверка не прошла сразу после успешной установки (или Windows ждёт перезагрузки): компоненты часто становятся видны
+    /// системе только после неё. Шаг остаётся с ошибкой, но сводка предложит перезагрузку и продолжение настройки.
+    /// </summary>
+    private void MarkRebootIfLikely(SetupStepModel step)
+    {
+        if (step.PairedInstallKind is not { } installKind || step.Status is StatusLevel.Ok or StatusLevel.Skipped or StatusLevel.NotChecked)
+        {
+            return;
+        }
+
+        if (!_installedInThisRun.Contains(installKind) && !WindowsInstallerState.IsRebootPending())
+        {
+            return;
+        }
+
+        step.NeedsReboot = true;
+        step.Details = $"{step.Details} Установка выполнена, но компонент ещё не виден системе — обычно это решается перезагрузкой компьютера.".Trim();
+        _logger.Warning($"Настройка: {step.Title}", "Проверка не прошла после установки: вероятно, нужна перезагрузка компьютера");
+    }
+
     /// <summary>Проверка уже установленного компонента для шага установки; null — для шага проверки нет.</summary>
     private ComponentInfo? CheckInstalled(SetupStepKind kind) => kind switch
     {
@@ -288,6 +314,11 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
 
         step.Status = result.Success ? StatusLevel.Ok : StatusLevel.Error;
         step.NeedsReboot = result.Success && result.RebootRequired;
+        if (result.Success)
+        {
+            _installedInThisRun.Add(step.Kind);
+        }
+
         step.Details = result.Success
             ? result.RebootRequired
                 ? "Установка завершена, требуется перезагрузка компьютера"

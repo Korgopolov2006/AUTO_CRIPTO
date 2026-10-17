@@ -401,10 +401,15 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         RebootRequired = Steps.Any(s => s.NeedsReboot);
         HasFailedSteps = Steps.Any(s => s.CanRetry);
 
-        SummaryLevel = errors > 0 ? StatusLevel.Error : warnings > 0 ? StatusLevel.Warning : StatusLevel.Ok;
-        SummaryTitle = errors > 0
-            ? "Настройка завершена с ошибками"
-            : warnings > 0
+        // Ошибки только у проверок, которые, вероятно, пройдут после перезагрузки, — это не провал настройки.
+        var onlyRebootErrors = errors > 0 && Steps.Where(s => s.Status == StatusLevel.Error).All(s => s.NeedsReboot);
+
+        SummaryLevel = errors > 0 && !onlyRebootErrors ? StatusLevel.Error : warnings > 0 || onlyRebootErrors ? StatusLevel.Warning : StatusLevel.Ok;
+        SummaryTitle = onlyRebootErrors
+            ? "Настройка завершена, нужна перезагрузка"
+            : errors > 0
+                ? "Настройка завершена с ошибками"
+                : warnings > 0
                 ? "Настройка завершена с замечаниями"
                 : "Настройка успешно завершена";
 
@@ -417,7 +422,9 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         text += $" · Время: {(int)duration.TotalMinutes:00}:{duration.Seconds:00}";
         if (RebootRequired)
         {
-            text += "\nДля завершения установки требуется перезагрузка компьютера.";
+            text += errors > 0
+                ? "\nЧасть проверок не прошла сразу после установки — обычно они проходят после перезагрузки. Перезагрузите компьютер: настройка продолжится сама."
+                : "\nДля завершения установки требуется перезагрузка компьютера.";
         }
 
         if (HasFailedSteps)
