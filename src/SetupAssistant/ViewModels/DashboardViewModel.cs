@@ -7,18 +7,18 @@ using SetupAssistant.Services.Interfaces;
 
 namespace SetupAssistant.ViewModels;
 
-/// <summary>Главный экран: готовность рабочего места, быстрое исправление проблем и сведения о станции.</summary>
+/// <summary>Главный экран: сведения о рабочем месте (домен, что установлено), быстрый выбор недостающего и данные станции.</summary>
 public partial class DashboardViewModel : ViewModelBase, INavigationAware
 {
     private static readonly TimeSpan StatusMaxAge = TimeSpan.FromSeconds(60);
-    private const int MaxIssuesShown = 6;
 
     private readonly INavigationService _navigationService;
     private readonly IExtensionUpdateService _extensionUpdateService;
     private readonly IWorkplaceStatusService _statusService;
     private readonly SetupWizardViewModel _wizard;
 
-    public ObservableCollection<ComponentInfo> Issues { get; } = new();
+    /// <summary>Обзор: домен, установленные и неустановленные компоненты. Не ошибки, а сведения.</summary>
+    public ObservableCollection<ComponentInfo> Overview { get; } = new();
 
     [ObservableProperty]
     private SystemInfo _systemInfo;
@@ -27,7 +27,7 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware
     [NotifyPropertyChangedFor(nameof(HasUpdateNotice))]
     private string _updateNotice = string.Empty;
 
-    /// <summary>Значок и цвет карточки состояния.</summary>
+    /// <summary>Значок карточки: сведения (Info), предупреждение (нашлось устаревшее), ход проверки.</summary>
     [ObservableProperty]
     private StatusLevel _readinessLevel = StatusLevel.NotChecked;
 
@@ -37,8 +37,9 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private string _readinessText = string.Empty;
 
+    /// <summary>Есть недостающие компоненты, которые можно выбрать в мастере.</summary>
     [ObservableProperty]
-    private bool _canFix;
+    private bool _canSelectMissing;
 
     [ObservableProperty]
     private bool _isSetupRunning;
@@ -46,12 +47,9 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware
     [ObservableProperty]
     private bool _isChecking;
 
-    [ObservableProperty]
-    private string _hiddenIssuesText = string.Empty;
-
     public bool HasUpdateNotice => !string.IsNullOrEmpty(UpdateNotice);
 
-    public bool HasIssues => Issues.Count > 0;
+    public bool HasOverview => Overview.Count > 0;
 
     public string AppName { get; }
 
@@ -114,17 +112,15 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware
         IsSetupRunning = _wizard.IsRunning;
         IsChecking = _statusService.IsChecking;
 
-        Issues.Clear();
-        foreach (var problem in summary.Problems.OrderByDescending(p => p.Status).Take(MaxIssuesShown))
+        // Домен — первой строкой, затем компоненты; остальные проверки живут в «Диагностике».
+        Overview.Clear();
+        foreach (var item in summary.Results.Where(c => c.ShowOnDashboard).OrderByDescending(c => c.IsDeviceManagement))
         {
-            Issues.Add(problem);
+            Overview.Add(item);
         }
 
-        OnPropertyChanged(nameof(HasIssues));
-        HiddenIssuesText = summary.Problems.Count > MaxIssuesShown
-            ? $"и ещё {summary.Problems.Count - MaxIssuesShown} — смотрите «Диагностику»"
-            : string.Empty;
-        CanFix = summary.FixSteps.Count > 0 && !IsSetupRunning && !IsChecking;
+        OnPropertyChanged(nameof(HasOverview));
+        CanSelectMissing = summary.Missing.Count > 0 && !IsSetupRunning && !IsChecking;
 
         if (IsSetupRunning)
         {
@@ -135,47 +131,28 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware
         else if (IsChecking)
         {
             ReadinessLevel = StatusLevel.InProgress;
-            ReadinessTitle = "Проверяем рабочее место…";
+            ReadinessTitle = "Собираем сведения о рабочем месте…";
             ReadinessText = _statusService.CurrentStepText;
         }
         else if (_statusService.CheckedAt is null)
         {
             ReadinessLevel = StatusLevel.NotChecked;
-            ReadinessTitle = "Состояние не проверено";
-            ReadinessText = "Нажмите «Проверить», чтобы узнать, всё ли готово для работы с электронной подписью.";
-        }
-        else if (summary.FixSteps.Count > 0)
-        {
-            ReadinessLevel = summary.ErrorCount > 0 ? StatusLevel.Error : StatusLevel.Warning;
-            ReadinessTitle = $"Найдено {Plural(summary.Problems.Count, "проблема", "проблемы", "проблем")}";
-            ReadinessText = $"Мастер может исправить {summary.Fixable.Count} из них автоматически — нажмите «Исправить».";
-        }
-        else if (summary.ErrorCount > 0)
-        {
-            ReadinessLevel = StatusLevel.Error;
-            ReadinessTitle = "Есть ошибки, требующие внимания";
-            ReadinessText = "Автоматически они не исправляются — подробности в списке ниже и в разделе «Диагностика».";
-        }
-        else if (summary.WarningCount > 0)
-        {
-            ReadinessLevel = StatusLevel.Warning;
-            ReadinessTitle = $"Рабочее место готово, {Plural(summary.WarningCount, "замечание", "замечания", "замечаний")}";
-            ReadinessText = "Замечания не мешают работе, но стоит обратить на них внимание.";
+            ReadinessTitle = "Сведения ещё не собраны";
+            ReadinessText = "Нажмите «Проверить снова», чтобы увидеть, что установлено на этом компьютере.";
         }
         else
         {
-            ReadinessLevel = StatusLevel.Ok;
-            ReadinessTitle = "Рабочее место готово";
-            ReadinessText = $"Все компоненты установлены и работают. Проверено в {_statusService.CheckedAt:HH:mm}.";
-        }
-    }
+            var components = Overview.Where(c => !c.IsDeviceManagement && c.Type != ComponentType.Token).ToList();
+            var installed = components.Count(c => c.Status is StatusLevel.Ok or StatusLevel.Warning);
+            var domain = Overview.FirstOrDefault(c => c.IsDeviceManagement);
+            var domainText = domain is null ? string.Empty : domain.Status == StatusLevel.Ok ? "Компьютер в домене или управляется." : "Компьютер не в домене.";
+            var hasOutdated = summary.WarningCount + summary.ErrorCount > 0;
 
-    private static string Plural(int count, string one, string few, string many)
-    {
-        var n = Math.Abs(count) % 100;
-        var last = n % 10;
-        var word = n is > 10 and < 20 ? many : last == 1 ? one : last is >= 2 and <= 4 ? few : many;
-        return $"{count} {word}";
+            ReadinessLevel = summary.ErrorCount > 0 ? StatusLevel.Error : summary.WarningCount > 0 ? StatusLevel.Warning : StatusLevel.Info;
+            ReadinessTitle = hasOutdated ? "Рабочее место: есть что обновить" : "Рабочее место: сведения";
+            ReadinessText = $"Установлено компонентов: {installed} из {components.Count}. {domainText}".Trim()
+                            + (hasOutdated ? " Версия некоторых компонентов ниже рекомендуемой." : string.Empty);
+        }
     }
 
     private async Task CheckExtensionUpdatesAsync()
@@ -214,8 +191,9 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware
         }
     }
 
+    /// <summary>Открывает мастер с уже отмеченными недостающими компонентами. Ничего не запускает: не всё нужно на каждом компьютере.</summary>
     [RelayCommand]
-    private async Task FixAsync()
+    private void SelectMissing()
     {
         var kinds = _statusService.Summary.FixSteps;
         if (kinds.Count == 0)
@@ -223,8 +201,8 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware
             return;
         }
 
+        _wizard.PrepareSelection(kinds);
         _navigationService.NavigateTo<SetupWizardViewModel>();
-        await _wizard.StartFixAsync(kinds);
     }
 
     [RelayCommand]

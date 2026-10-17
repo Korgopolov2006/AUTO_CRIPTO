@@ -16,6 +16,7 @@ public sealed class StatusLevelToTextConverter : IValueConverter
             StatusLevel.Error => "Ошибка",
             StatusLevel.InProgress => "Выполняется...",
             StatusLevel.Skipped => "Пропущено",
+            StatusLevel.Info => "К сведению",
             _ => "Не проверено"
         };
     }

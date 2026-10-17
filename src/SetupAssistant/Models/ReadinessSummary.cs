@@ -9,7 +9,9 @@ public sealed class ReadinessSummary
     {
         Results = results;
         Problems = results.Where(c => c.IsProblem).ToList();
-        Fixable = Problems.Where(c => c.CanFix).ToList();
+        Fixable = results.Where(c => c.CanFix).ToList();
+        Missing = results.Where(c => c.IsMissing).ToList();
+        InfoCount = results.Count(c => c.Status == StatusLevel.Info);
         ErrorCount = Problems.Count(c => c.Status == StatusLevel.Error);
         WarningCount = Problems.Count(c => c.Status == StatusLevel.Warning);
         OkCount = results.Count(c => c.Status == StatusLevel.Ok);
@@ -20,8 +22,14 @@ public sealed class ReadinessSummary
     /// <summary>Предупреждения и ошибки обязательных компонентов.</summary>
     public IReadOnlyList<ComponentInfo> Problems { get; }
 
-    /// <summary>Проблемы, которые мастер умеет исправить установкой.</summary>
+    /// <summary>Что мастер умеет установить или исправить: недостающие компоненты и проблемы.</summary>
     public IReadOnlyList<ComponentInfo> Fixable { get; }
+
+    /// <summary>Не установлено — к сведению, не проблема (не на каждом компьютере нужен весь набор).</summary>
+    public IReadOnlyList<ComponentInfo> Missing { get; }
+
+    /// <summary>Сколько проверок завершились сведениями: не установлено, не подключён, не в домене.</summary>
+    public int InfoCount { get; }
 
     public int ErrorCount { get; }
     public int WarningCount { get; }

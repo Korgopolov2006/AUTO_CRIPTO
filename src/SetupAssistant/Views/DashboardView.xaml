@@ -47,9 +47,9 @@
                                        Margin="0,4,0,0" />
 
                             <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                                <Button Content="Исправить" Style="{StaticResource AccentButtonStyle}" Padding="20,6"
-                                        Command="{Binding FixCommand}"
-                                        Visibility="{Binding CanFix, Converter={StaticResource BoolToVisibility}}" />
+                                <Button Content="Выбрать недостающее в мастере" Style="{StaticResource AccentButtonStyle}" Padding="20,6"
+                                        Command="{Binding SelectMissingCommand}"
+                                        Visibility="{Binding CanSelectMissing, Converter={StaticResource BoolToVisibility}}" />
                                 <Button Content="Показать ход настройки" Style="{StaticResource AccentButtonStyle}" Padding="20,6"
                                         Command="{Binding ShowSetupProgressCommand}"
                                         Visibility="{Binding IsSetupRunning, Converter={StaticResource BoolToVisibility}}" />
@@ -62,28 +62,27 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Что именно не так -->
-                    <StackPanel Margin="68,18,0,0" Visibility="{Binding HasIssues, Converter={StaticResource BoolToVisibility}}">
+                    <!-- Обзор: домен, что установлено и что нет. Это сведения, а не ошибки: не на каждом компьютере нужен весь набор -->
+                    <StackPanel Margin="68,18,0,0" Visibility="{Binding HasOverview, Converter={StaticResource BoolToVisibility}}">
                         <Border Height="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" Margin="0,0,0,10" />
-                        <ItemsControl ItemsSource="{Binding Issues}">
+                        <ItemsControl ItemsSource="{Binding Overview}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="0,4">
+                                    <Grid Margin="0,5">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="230" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <ContentPresenter Content="{Binding Status}" ContentTemplate="{StaticResource StatusIconTemplate}"
                                                           VerticalAlignment="Top" Margin="0,0,12,0" />
-                                        <StackPanel Grid.Column="1">
-                                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding ErrorMessage}" Style="{StaticResource MutedTextStyle}" Margin="0,2,0,0" />
-                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,12,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding DashboardText}" Style="{StaticResource MutedTextStyle}"
+                                                   FontSize="13" VerticalAlignment="Top" Margin="0,1,0,0" />
                                     </Grid>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock Text="{Binding HiddenIssuesText}" Style="{StaticResource MutedTextStyle}" Margin="0,6,0,0" />
                     </StackPanel>
                 </StackPanel>
             </Border>

@@ -187,14 +187,25 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
     }
 
-    /// <summary>Выбирает только то, что по последней диагностике требует исправления.</summary>
+    /// <summary>Отмечает указанные шаги, не запуская установку: пользователь сам решает, что нужно на этом компьютере.</summary>
+    public void PrepareSelection(IReadOnlyCollection<SetupStepKind> kinds)
+    {
+        if (IsRunning)
+        {
+            return;
+        }
+
+        SetupPlan.SelectOnly(Steps, kinds);
+    }
+
+    /// <summary>Выбирает только то, чего по последней диагностике не хватает или что требует исправления.</summary>
     [RelayCommand]
     private async Task SelectProblemsAsync()
     {
         var summary = _statusService.CheckedAt is null ? await _statusService.RefreshAsync() : _statusService.Summary;
         if (summary.FixSteps.Count == 0)
         {
-            _notifications.Show(ToastKind.Info, "Всё в порядке", "Диагностика не нашла проблем, которые исправляет мастер.");
+            _notifications.Show(ToastKind.Info, "Всё на месте", "Недостающих компонентов, которые ставит мастер, не найдено.");
             return;
         }
 
@@ -262,18 +273,21 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
     /// <summary>Продолжение настройки после перезагрузки: определяет, что осталось неисправленным, и исправляет.</summary>
     public async Task ResumeAfterRebootAsync()
     {
+        // Продолжаем только то, что выбирал пользователь до перезагрузки, а не всё недостающее на компьютере.
+        var planned = ResumeRegistration.ReadSteps();
         ResumeRegistration.Unregister();
         _logger.Info("Продолжение после перезагрузки", "Приложение запущено после перезагрузки: проверяем, что осталось сделать");
 
         await RunPreflightAsync();
         var summary = await _statusService.RefreshAsync();
-        if (summary.FixSteps.Count == 0)
+        var remaining = summary.FixSteps.Where(planned.Contains).ToList();
+        if (remaining.Count == 0)
         {
-            _notifications.Show(ToastKind.Success, "Рабочее место готово", "После перезагрузки проблем, которые исправляет мастер, не осталось.");
+            _notifications.Show(ToastKind.Success, "Настройка завершена", "После перезагрузки докончить уже нечего.");
             return;
         }
 
-        await StartFixAsync(summary.FixSteps, askConfirmation: false);
+        await StartFixAsync(remaining, askConfirmation: false);
     }
 
     [RelayCommand]
@@ -473,7 +487,8 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
 
         try
         {
-            ResumeRegistration.Register();
+            // Запоминаем выбранные шаги, которые не завершились успешно: их и продолжим после перезагрузки.
+            ResumeRegistration.Register(Steps.Where(s => s.IsSelectable && s.IsSelected && s.Status != StatusLevel.Ok).Select(s => s.Kind));
             Process.Start(new ProcessStartInfo("shutdown.exe", "/r /t 30 /c \"Перезагрузка для завершения настройки рабочего места\"")
             {
                 CreateNoWindow = true,

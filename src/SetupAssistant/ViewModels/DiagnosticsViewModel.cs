@@ -38,6 +38,9 @@ public partial class DiagnosticsViewModel : ViewModelBase, INavigationAware
     private int _okCount;
 
     [ObservableProperty]
+    private int _infoCount;
+
+    [ObservableProperty]
     private int _warningCount;
 
     [ObservableProperty]
@@ -124,6 +127,7 @@ public partial class DiagnosticsViewModel : ViewModelBase, INavigationAware
 
         HasRun = _statusService.CheckedAt is not null;
         OkCount = summary.OkCount;
+        InfoCount = summary.InfoCount;
         WarningCount = summary.WarningCount;
         ErrorCount = summary.ErrorCount;
         FixableCount = summary.Fixable.Count;
