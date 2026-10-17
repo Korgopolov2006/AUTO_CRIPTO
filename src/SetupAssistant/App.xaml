@@ -28,6 +28,12 @@
             <DataTemplate DataType="{x:Type vm:CertificatesViewModel}">
                 <views:CertificatesView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:FirstRunViewModel}">
+                <views:FirstRunView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:SignatureTestViewModel}">
+                <views:SignatureTestView />
+            </DataTemplate>
             <DataTemplate DataType="{x:Type vm:TokenPinViewModel}">
                 <views:TokenPinView />
             </DataTemplate>

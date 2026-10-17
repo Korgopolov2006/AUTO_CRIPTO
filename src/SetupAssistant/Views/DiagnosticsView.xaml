@@ -68,14 +68,14 @@
                     </StackPanel>
                 </Border>
             </StackPanel>
-            <ToggleButton Grid.Column="1" Content="Только проблемы" IsChecked="{Binding ShowOnlyProblems}" Padding="14,5" />
+            <ToggleButton Grid.Column="1" Content="Только проблемы" AutomationProperties.HelpText="Скрыть всё, кроме предупреждений и ошибок" IsChecked="{Binding ShowOnlyProblems}" Padding="14,5" />
         </Grid>
 
         <ProgressBar DockPanel.Dock="Top" IsIndeterminate="True" Margin="0,0,0,12"
                      Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisibility}}" />
 
         <Grid>
-            <DataGrid x:Name="Grid" ItemsSource="{Binding Components}" SelectionMode="Single"
+            <DataGrid x:Name="Grid" ItemsSource="{Binding Components}" SelectionMode="Single" AutomationProperties.Name="Результаты диагностики"
                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                 <DataGrid.GroupStyle>
                     <GroupStyle>
@@ -101,6 +101,26 @@
                         </GroupStyle.ContainerStyle>
                     </GroupStyle>
                 </DataGrid.GroupStyle>
+
+                <DataGrid.RowDetailsTemplate>
+                    <DataTemplate>
+                        <Border Margin="44,0,12,10" Padding="12,9" CornerRadius="6"
+                                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                                Visibility="{Binding Advice, Converter={StaticResource NullToCollapsed}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:FontIcon Glyph="&#xEA80;" FontSize="16" VerticalAlignment="Top" Margin="0,2,10,0"
+                                             Foreground="{DynamicResource SystemControlHighlightAccentBrush}" />
+                                <TextBlock Grid.Column="1" TextWrapping="Wrap">
+                                    <Run Text="Что делать: " FontWeight="SemiBold" /><Run Text="{Binding Advice, Mode=OneWay}" />
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </DataGrid.RowDetailsTemplate>
 
                 <DataGrid.ContextMenu>
                     <ContextMenu>
@@ -153,9 +173,12 @@
                 </DataGrid.Columns>
             </DataGrid>
 
+            <controls:SkeletonList Rows="9" Margin="16,12,16,0" VerticalAlignment="Top"
+                                   Visibility="{Binding ShowSkeleton, Converter={StaticResource BoolToVisibility}}" />
+
             <controls:EmptyState Glyph="&#xE9D9;" Title="{Binding EmptyText}"
                                  Hint="{Binding EmptyHint}"
-                                 Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}" />
+                                 Visibility="{Binding ShowEmpty, Converter={StaticResource BoolToVisibility}}" />
         </Grid>
     </DockPanel>
 </UserControl>

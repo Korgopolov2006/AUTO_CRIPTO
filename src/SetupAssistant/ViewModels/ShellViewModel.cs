@@ -33,6 +33,10 @@ public partial class ShellViewModel : ViewModelBase
     [ObservableProperty]
     private double _taskbarProgress;
 
+    /// <summary>Подсказка над значком в области уведомлений: что сейчас делает приложение.</summary>
+    [ObservableProperty]
+    private string _trayTooltip = "Помощник настройки рабочего места";
+
     public ObservableCollection<ToastItem> Toasts => _notifications.Items;
 
     /// <summary>Идёт установка или удаление: закрывать окно опасно.</summary>
@@ -43,7 +47,8 @@ public partial class ShellViewModel : ViewModelBase
         INotificationService notifications,
         IDialogService dialogService,
         SetupWizardViewModel wizard,
-        UninstallViewModel uninstall)
+        UninstallViewModel uninstall,
+        IUserSettingsService userSettings)
     {
         _navigationService = navigationService;
         _notifications = notifications;
@@ -56,7 +61,15 @@ public partial class ShellViewModel : ViewModelBase
         _uninstall.PropertyChanged += OnOperationChanged;
         _dialogService.ActionPromptVisibilityChanged += (_, _) => UpdateIndicators();
 
-        _navigationService.NavigateTo<DashboardViewModel>();
+        // При самом первом запуске — короткое приветствие, потом всегда главная.
+        if (userSettings.FirstRunCompleted)
+        {
+            _navigationService.NavigateTo<DashboardViewModel>();
+        }
+        else
+        {
+            _navigationService.NavigateTo<FirstRunViewModel>();
+        }
     }
 
     private void OnOperationChanged(object? sender, PropertyChangedEventArgs e)
@@ -75,6 +88,9 @@ public partial class ShellViewModel : ViewModelBase
 
         var running = _wizard.IsRunning ? _wizard : _uninstall.IsRunning ? (StepsViewModelBase)_uninstall : null;
         TaskbarProgress = running is null ? 0 : running.ProgressPercent / 100.0;
+        TrayTooltip = running is null
+            ? "Помощник настройки рабочего места"
+            : $"{(running == _wizard ? "Настройка" : "Удаление")}: {running.ProgressPercent}%";
 
         // Жёлтый индикатор — приложение ждёт действия пользователя (носитель, PIN-код).
         TaskbarState = running is null

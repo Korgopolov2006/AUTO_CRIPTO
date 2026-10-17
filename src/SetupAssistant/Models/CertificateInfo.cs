@@ -35,6 +35,37 @@ public sealed class CertificateInfo
 
     public string ExpiryText { get; set; } = string.Empty;
 
+    /// <summary>Заполняет <see cref="ExpiryLevel"/> и <see cref="ExpiryText"/> по сроку действия.</summary>
+    public void ApplyExpiry(int warningDays)
+    {
+        var days = (ValidTo.Date - DateTime.Now.Date).Days;
+        (ExpiryLevel, ExpiryText) = days switch
+        {
+            < 0 => (StatusLevel.Error, $"Истёк {-days} дн. назад"),
+            0 => (StatusLevel.Warning, "Истекает сегодня"),
+            _ when days <= warningDays => (StatusLevel.Warning, $"Истекает через {days} дн."),
+            _ => (StatusLevel.Ok, $"Действует ещё {days} дн.")
+        };
+    }
+
+    /// <summary>Заполнение полоски срока: у истёкшего сертификата полоска полная и красная, у действующего — доля оставшегося срока.</summary>
+    public double ValidityBarPercent => ExpiryLevel == StatusLevel.Error ? 100 : RemainingPercent;
+
+    /// <summary>Сколько срока действия осталось (0..100) — для полоски в списке сертификатов.</summary>
+    public double RemainingPercent
+    {
+        get
+        {
+            var total = (ValidTo - ValidFrom).TotalDays;
+            if (total <= 0)
+            {
+                return 0;
+            }
+
+            return Math.Clamp((ValidTo - DateTime.Now).TotalDays / total * 100, 0, 100);
+        }
+    }
+
     public bool IsExpired => DateTime.Now > ValidTo;
     public int DaysUntilExpiry => (ValidTo - DateTime.Now).Days;
 }

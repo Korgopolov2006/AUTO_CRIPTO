@@ -38,7 +38,7 @@
                 <ColumnDefinition Width="*" MaxWidth="360" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+            <TextBox AutomationProperties.Name="Поиск сертификатов" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                      ui:ControlHelper.PlaceholderText="Поиск по владельцу, организации, номеру, отпечатку" />
             <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
                 <Button Content="Обновить" Margin="0,0,12,0" Command="{Binding LoadCertificatesCommand}" />
@@ -54,16 +54,26 @@
             </Grid.ColumnDefinitions>
 
             <Grid>
-                <DataGrid ItemsSource="{Binding Certificates}" SelectedItem="{Binding SelectedCertificate}" SelectionMode="Single"
+                <DataGrid ItemsSource="{Binding Certificates}" SelectedItem="{Binding SelectedCertificate}" SelectionMode="Single" AutomationProperties.Name="Список сертификатов"
                           Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                     <DataGrid.Columns>
                         <DataGridTemplateColumn Header="Срок" Width="Auto">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" Margin="4,0">
-                                        <ContentPresenter Content="{Binding ExpiryLevel}" ContentTemplate="{StaticResource StatusIconTemplate}" />
-                                        <TextBlock Text="{Binding ExpiryText}" Margin="8,0,0,0" VerticalAlignment="Center" />
-                                    </StackPanel>
+                                    <Grid Margin="4,6" MinWidth="170">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <ContentPresenter Content="{Binding ExpiryLevel}" ContentTemplate="{StaticResource StatusIconTemplate}"
+                                                          VerticalAlignment="Center" />
+                                        <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                    ToolTip="{Binding ExpiryText}">
+                                            <TextBlock Text="{Binding ExpiryText}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                                            <ProgressBar Style="{StaticResource ValidityBarStyle}" Value="{Binding ValidityBarPercent, Mode=OneWay}"
+                                                         Margin="0,4,0,0" AutomationProperties.Name="Остаток срока действия" />
+                                        </StackPanel>
+                                    </Grid>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
@@ -100,6 +110,9 @@
                             <Run Text="{Binding SelectedCertificate.ValidTo, Mode=OneWay, StringFormat='{}{0:dd.MM.yyyy}'}" />
                             <Run Text="{Binding SelectedCertificate.ExpiryText, Mode=OneWay, StringFormat=' ({0})'}" />
                         </TextBlock>
+                        <ProgressBar Style="{StaticResource ValidityBarStyle}" DataContext="{Binding SelectedCertificate}"
+                                     Value="{Binding ValidityBarPercent, Mode=OneWay}" Margin="0,-4,0,12"
+                                     AutomationProperties.Name="Остаток срока действия" />
 
                         <TextBlock Text="Серийный номер" Style="{StaticResource MutedTextStyle}" />
                         <TextBlock Text="{Binding SelectedCertificate.SerialNumber}" TextWrapping="Wrap" FontFamily="Consolas" Margin="0,0,0,10" />

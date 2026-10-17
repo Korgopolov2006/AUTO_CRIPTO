@@ -8,7 +8,7 @@ using SetupAssistant.Services.Interfaces;
 namespace SetupAssistant.ViewModels;
 
 /// <summary>Смена PIN-кода носителя (пароля электронной подписи) — как в «Панели управления Рутокен».</summary>
-public partial class TokenPinViewModel : ViewModelBase, INavigationAware
+public partial class TokenPinViewModel : ViewModelBase, INavigationAware, IRefreshable
 {
     private const int MinPinLength = 6;
     private const int MaxPinLength = 32;
@@ -124,6 +124,9 @@ public partial class TokenPinViewModel : ViewModelBase, INavigationAware
         _ = ScanAsync();
         _scanTimer.Start();
     }
+
+    /// <summary>F5: заново найти подключённые носители.</summary>
+    public void Refresh() => _ = ScanAsync();
 
     public void OnNavigatedFrom() => _scanTimer.Stop();
 

@@ -44,6 +44,26 @@
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
+    <!-- Полоска остатка срока действия сертификата: цвет по ExpiryLevel (зелёный, жёлтый, красный) -->
+    <Style x:Key="ValidityBarStyle" TargetType="ProgressBar" BasedOn="{StaticResource {x:Type ProgressBar}}">
+        <Setter Property="Minimum" Value="0" />
+        <Setter Property="Maximum" Value="100" />
+        <Setter Property="Height" Value="5" />
+        <Setter Property="MinHeight" Value="5" />
+        <Setter Property="Foreground" Value="{StaticResource StatusNeutralBrush}" />
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding ExpiryLevel}" Value="{x:Static models:StatusLevel.Ok}">
+                <Setter Property="Foreground" Value="{StaticResource StatusOkBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding ExpiryLevel}" Value="{x:Static models:StatusLevel.Warning}">
+                <Setter Property="Foreground" Value="{StaticResource StatusWarningBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding ExpiryLevel}" Value="{x:Static models:StatusLevel.Error}">
+                <Setter Property="Foreground" Value="{StaticResource StatusErrorBrush}" />
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- Кнопка-ссылка: текст акцентного цвета без рамки -->
     <Style x:Key="LinkButtonStyle" TargetType="Button">
         <Setter Property="Foreground" Value="{DynamicResource SystemControlHighlightAccentBrush}" />
@@ -127,7 +147,9 @@
 
     <!-- Значок состояния: Content = StatusLevel -->
     <DataTemplate x:Key="StatusIconTemplate" DataType="{x:Type models:StatusLevel}">
-        <Grid Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Grid Width="22" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center"
+              ToolTip="{Binding Converter={StaticResource StatusToText}}"
+              AutomationProperties.Name="{Binding Converter={StaticResource StatusToText}}">
             <ui:FontIcon x:Name="Icon" Glyph="&#xE91F;" FontSize="18"
                          Foreground="{StaticResource StatusNeutralBrush}" />
             <ui:ProgressRing x:Name="Ring" Width="18" Height="18" IsActive="False" Visibility="Collapsed" />
@@ -203,6 +225,10 @@
                     <StackPanel Grid.Column="1">
                         <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
                         <TextBlock Text="{Binding Details}" Style="{StaticResource MutedTextStyle}" Margin="0,3,0,0" />
+                        <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" FontSize="12"
+                                   Visibility="{Binding HasAdvice, Converter={StaticResource BoolToVisibility}}">
+                            <Run Text="Что делать: " FontWeight="SemiBold" Foreground="{DynamicResource SystemControlHighlightAccentBrush}" /><Run Text="{Binding Advice, Mode=OneWay}" />
+                        </TextBlock>
                     </StackPanel>
 
                     <TextBlock Grid.Column="2" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Top"
@@ -297,6 +323,10 @@
                                 </Style>
                             </Button.Style>
                         </Button>
+                        <TextBlock Margin="0,6,0,0" TextWrapping="Wrap" FontSize="12"
+                                   Visibility="{Binding HasAdvice, Converter={StaticResource BoolToVisibility}}">
+                            <Run Text="Что делать: " FontWeight="SemiBold" Foreground="{DynamicResource SystemControlHighlightAccentBrush}" /><Run Text="{Binding Advice, Mode=OneWay}" />
+                        </TextBlock>
                     </StackPanel>
 
                     <StackPanel Grid.Column="3" Margin="16,0,0,0" HorizontalAlignment="Right">

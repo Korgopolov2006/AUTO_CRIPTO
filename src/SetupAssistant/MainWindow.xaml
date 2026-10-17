@@ -3,12 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://schemas.modernwpf.com/2019"
         xmlns:vm="clr-namespace:SetupAssistant.ViewModels"
+        xmlns:tb="clr-namespace:H.NotifyIcon;assembly=H.NotifyIcon.Wpf"
         ui:WindowHelper.UseModernWindowStyle="True"
         Title="Помощник настройки рабочего места для электронной подписи"
         Height="780" Width="1240"
         MinHeight="620" MinWidth="720"
         WindowStartupLocation="CenterScreen"
-        Closing="OnWindowClosing">
+        Closing="OnWindowClosing"
+        PreviewKeyDown="OnPreviewKeyDown">
 
     <Window.Resources>
         <!-- На Windows 11 фон окна — Mica; панель и область страниц не должны его перекрывать (см. MainWindow.xaml.cs) -->
@@ -21,7 +23,7 @@
         <TaskbarItemInfo ProgressState="{Binding TaskbarState}" ProgressValue="{Binding TaskbarProgress}" />
     </Window.TaskbarItemInfo>
 
-    <Grid>
+    <Grid x:Name="Root">
         <ui:NavigationView x:Name="Navigation"
                            PaneDisplayMode="Auto"
                            OpenPaneLength="260"
@@ -69,6 +71,11 @@
                         <ui:FontIcon Glyph="&#xEB95;" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Тест подписи" Tag="{x:Type vm:SignatureTestViewModel}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xE70F;" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
                 <ui:NavigationViewItem Content="PIN-код носителя" Tag="{x:Type vm:TokenPinViewModel}">
                     <ui:NavigationViewItem.Icon>
                         <ui:FontIcon Glyph="&#xE72E;" />
@@ -101,5 +108,19 @@
         <ItemsControl ItemsSource="{Binding Toasts}" ItemTemplate="{StaticResource ToastTemplate}"
                       HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,24,20"
                       Focusable="False" />
+
+        <!-- Значок в области уведомлений: открыть окно, выйти; сообщает о завершении операции, пока окно свёрнуто -->
+        <tb:TaskbarIcon x:Name="Tray" ToolTipText="{Binding TrayTooltip}" NoLeftClickDelay="True" TrayMouseDoubleClick="OnTrayDoubleClick">
+            <tb:TaskbarIcon.IconSource>
+                <tb:GeneratedIconSource Text="ЭП" Foreground="White" Background="#0F6CBD" FontSize="40" />
+            </tb:TaskbarIcon.IconSource>
+            <tb:TaskbarIcon.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Открыть окно" Click="OnTrayOpenClick" />
+                    <Separator />
+                    <MenuItem Header="Выход" Click="OnTrayExitClick" />
+                </ContextMenu>
+            </tb:TaskbarIcon.ContextMenu>
+        </tb:TaskbarIcon>
     </Grid>
 </Window>

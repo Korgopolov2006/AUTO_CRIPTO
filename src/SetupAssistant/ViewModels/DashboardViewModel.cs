@@ -8,7 +8,7 @@ using SetupAssistant.Services.Interfaces;
 namespace SetupAssistant.ViewModels;
 
 /// <summary>Главный экран: сведения о рабочем месте (домен, что установлено), быстрый выбор недостающего и данные станции.</summary>
-public partial class DashboardViewModel : ViewModelBase, INavigationAware
+public partial class DashboardViewModel : ViewModelBase, INavigationAware, IRefreshable
 {
     private static readonly TimeSpan StatusMaxAge = TimeSpan.FromSeconds(60);
 
@@ -50,6 +50,9 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware
     public bool HasUpdateNotice => !string.IsNullOrEmpty(UpdateNotice);
 
     public bool HasOverview => Overview.Count > 0;
+
+    /// <summary>Идёт проверка и обзора ещё нет: показываем «скелетон».</summary>
+    public bool ShowOverviewSkeleton => IsChecking && !HasOverview;
 
     public string AppName { get; }
 
@@ -102,6 +105,9 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware
         }
     }
 
+    /// <summary>F5: заново собрать сведения о рабочем месте.</summary>
+    public void Refresh() => _ = RecheckAsync();
+
     public void OnNavigatedFrom()
     {
     }
@@ -120,6 +126,7 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware
         }
 
         OnPropertyChanged(nameof(HasOverview));
+        OnPropertyChanged(nameof(ShowOverviewSkeleton));
         CanSelectMissing = summary.Missing.Count > 0 && !IsSetupRunning && !IsChecking;
 
         if (IsSetupRunning)

@@ -5,6 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:models="clr-namespace:SetupAssistant.Models"
+             xmlns:controls="clr-namespace:SetupAssistant.Controls"
              mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700">
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -62,13 +63,16 @@
                         </StackPanel>
                     </Grid>
 
+                    <controls:SkeletonList Rows="6" Margin="68,18,0,0"
+                                           Visibility="{Binding ShowOverviewSkeleton, Converter={StaticResource BoolToVisibility}}" />
+
                     <!-- Обзор: домен, что установлено и что нет. Это сведения, а не ошибки: не на каждом компьютере нужен весь набор -->
                     <StackPanel Margin="68,18,0,0" Visibility="{Binding HasOverview, Converter={StaticResource BoolToVisibility}}">
                         <Border Height="1" Background="{DynamicResource SystemControlForegroundBaseLowBrush}" Margin="0,0,0,10" />
                         <ItemsControl ItemsSource="{Binding Overview}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Margin="0,5">
+                                    <Grid Margin="0,5" ToolTip="{Binding Advice}" ToolTipService.ShowOnDisabled="True">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto" />
                                             <ColumnDefinition Width="230" />

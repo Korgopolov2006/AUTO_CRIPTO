@@ -41,6 +41,11 @@ public sealed class HeadlessRunner
                 return options.Error is null ? 0 : CommandLineOptions.ExitInvalidArguments;
             }
 
+            if (options.SupportBundlePath is not null)
+            {
+                return await SupportBundleAsync(options.SupportBundlePath);
+            }
+
             return options.Check ? await CheckAsync(options) : await SilentAsync(options);
         }
         catch (Exception ex)
@@ -49,6 +54,14 @@ public sealed class HeadlessRunner
             Print($"Ошибка: {ex.Message}");
             return 2;
         }
+    }
+
+    private async Task<int> SupportBundleAsync(string path)
+    {
+        // Сведения о сертификатах — персональные данные, поэтому без запроса пользователя в пакет не добавляются.
+        var created = await _services.GetRequiredService<ISupportBundleService>().CreateAsync(Path.GetFullPath(path), includeCertificates: false);
+        Print($"Пакет для поддержки создан: {created}");
+        return 0;
     }
 
     private async Task<int> CheckAsync(CommandLineOptions options)
