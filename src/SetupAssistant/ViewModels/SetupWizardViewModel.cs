@@ -24,6 +24,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
     private readonly ILoggingService _logger;
 
     private CancellationTokenSource? _cancellationTokenSource;
+    private TimeSpan _lastRunDuration;
     private readonly ICollectionView _stepsView;
 
     public ObservableCollection<PreflightCheck> PreflightChecks { get; } = new();
@@ -367,7 +368,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
         catch (OperationCanceledException)
         {
-            _notifications.Show(ToastKind.Warning, "Настройка отменена", "Выполненные шаги остались как есть, остальные не запускались.");
+            _notifications.Show(ToastKind.Warning, "Настройка отменена", "Выполненные шаги остались как есть, остальные не запускались. Если шла установка компонента, Windows может ещё дозавершать её в фоне — следующий запуск дождётся.");
             BuildSummary(stopwatch.Elapsed);
         }
         catch (Exception ex)
@@ -391,6 +392,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
 
     private void BuildSummary(TimeSpan duration)
     {
+        _lastRunDuration = duration;
         var ok = Steps.Count(s => s.Status == StatusLevel.Ok);
         var warnings = Steps.Count(s => s.Status == StatusLevel.Warning);
         var errors = Steps.Count(s => s.Status == StatusLevel.Error);
@@ -460,6 +462,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
             var report = new ReportModel
             {
                 SystemInfo = _systemService.GetSystemInfo(),
+                ExecutionDuration = _lastRunDuration,
                 Components = _statusService.Summary.Results.ToList(),
                 Certificates = _certificateService.GetCertificates().ToList(),
                 Errors = Steps.Where(s => s.Status is StatusLevel.Error or StatusLevel.Warning)

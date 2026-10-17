@@ -184,7 +184,8 @@ public sealed partial class UninstallService : IUninstallService
         StopProcesses(definition);
         step.Details = $"Удаляется {product.DisplayName}…";
 
-        var result = await _installerService.RunAsync(file, arguments, Action, cancellationToken);
+        var status = new Progress<string>(message => step.Details = message);
+        var result = await _installerService.RunAsync(file, arguments, Action, status, cancellationToken);
 
         // Код возврата может быть «нужна перезагрузка» или «уже удалено», поэтому итог определяет реестр.
         if (FindProduct(definition) is null)

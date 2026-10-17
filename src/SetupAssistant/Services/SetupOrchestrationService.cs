@@ -255,7 +255,9 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
             }
         }
 
-        var result = await _installerService.InstallAsync(installer, cancellationToken);
+        var status = new Progress<string>(message => step.Details = message);
+        step.Details = "Установка запущена…";
+        var result = await _installerService.InstallAsync(installer, status, cancellationToken);
 
         step.Status = result.Success ? StatusLevel.Ok : StatusLevel.Error;
         step.NeedsReboot = result.Success && result.RebootRequired;

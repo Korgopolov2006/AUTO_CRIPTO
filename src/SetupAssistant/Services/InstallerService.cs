@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using SetupAssistant.Helpers;
 using SetupAssistant.Models;
 using SetupAssistant.Services.Interfaces;
 
@@ -11,6 +12,18 @@ public sealed class InstallerService : IInstallerService
     /// <summary>Код msiexec/установщиков «успешно, требуется перезагрузка».</summary>
     private const int ExitCodeRebootRequired = 3010;
 
+    /// <summary>Код msiexec «другая установка уже выполняется».</summary>
+    private const int ExitCodeInstallerBusy = 1618;
+
+    /// <summary>Сколько повторов делать, если Windows Installer занят в момент запуска.</summary>
+    private const int MaxBusyAttempts = 3;
+
+    /// <summary>Деинсталляция КриптоПро CSP на медленных компьютерах занимает около получаса — ждём с запасом.</summary>
+    private static readonly TimeSpan MaxInstallerWait = TimeSpan.FromMinutes(60);
+
+    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan HeartbeatLogInterval = TimeSpan.FromMinutes(2);
+
     private readonly IConfigService _configService;
     private readonly ILoggingService _logger;
 
@@ -20,17 +33,17 @@ public sealed class InstallerService : IInstallerService
         _logger = logger;
     }
 
-    public async Task<InstallResult> InstallAsync(InstallerDefinition installer, CancellationToken cancellationToken = default)
+    public async Task<InstallResult> InstallAsync(InstallerDefinition installer, IProgress<string>? status = null, CancellationToken cancellationToken = default)
     {
         // В едином exe крупный дистрибутив распаковывается при первом обращении — не блокируем окно.
         var fullPath = await Task.Run(() => _configService.ResolvePath(installer.Path), cancellationToken);
 
         return installer.Kind == InstallerKind.Msi
-            ? await InstallMsiAsync(fullPath, installer.SilentArgs, cancellationToken)
-            : await InstallExeAsync(fullPath, installer.SilentArgs, cancellationToken);
+            ? await InstallMsiAsync(fullPath, installer.SilentArgs, status, cancellationToken)
+            : await InstallExeAsync(fullPath, installer.SilentArgs, status, cancellationToken);
     }
 
-    public async Task<InstallResult> InstallMsiAsync(string msiPath, string additionalArgs = "", CancellationToken cancellationToken = default)
+    public async Task<InstallResult> InstallMsiAsync(string msiPath, string additionalArgs = "", IProgress<string>? status = null, CancellationToken cancellationToken = default)
     {
         if (!File.Exists(msiPath))
         {
@@ -40,10 +53,10 @@ public sealed class InstallerService : IInstallerService
         }
 
         var args = $"/i \"{msiPath}\" /qn /norestart {additionalArgs}".Trim();
-        return await RunProcessAsync("msiexec.exe", args, cancellationToken);
+        return await RunProcessAsync("msiexec.exe", args, DefaultActionLabel, status, cancellationToken);
     }
 
-    public async Task<InstallResult> InstallExeAsync(string exePath, string silentArgs = "", CancellationToken cancellationToken = default)
+    public async Task<InstallResult> InstallExeAsync(string exePath, string silentArgs = "", IProgress<string>? status = null, CancellationToken cancellationToken = default)
     {
         if (!File.Exists(exePath))
         {
@@ -52,63 +65,47 @@ public sealed class InstallerService : IInstallerService
             return new InstallResult(false, -1, message);
         }
 
-        return await RunProcessAsync(exePath, silentArgs, cancellationToken);
+        return await RunProcessAsync(exePath, silentArgs, DefaultActionLabel, status, cancellationToken);
     }
 
-    public Task<InstallResult> RunAsync(string fileName, string arguments, string actionLabel, CancellationToken cancellationToken = default) =>
-        RunProcessAsync(fileName, arguments, cancellationToken, actionLabel);
+    public Task<InstallResult> RunAsync(string fileName, string arguments, string actionLabel, IProgress<string>? status = null, CancellationToken cancellationToken = default) =>
+        RunProcessAsync(fileName, arguments, actionLabel, status, cancellationToken);
 
     private const string DefaultActionLabel = "Установка";
 
-    private async Task<InstallResult> RunProcessAsync(string fileName, string arguments, CancellationToken cancellationToken, string actionLabel = DefaultActionLabel)
+    private async Task<InstallResult> RunProcessAsync(string fileName, string arguments, string actionLabel, IProgress<string>? status, CancellationToken cancellationToken)
     {
         var processName = Path.GetFileName(fileName);
+        var isMsi = processName.Equals("msiexec.exe", StringComparison.OrdinalIgnoreCase);
 
         try
         {
-            var startInfo = new ProcessStartInfo
+            for (var attempt = 1; ; attempt++)
             {
-                FileName = fileName,
-                Arguments = arguments,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
+                // Windows Installer выполняет одну установку за раз. Если предыдущая (в том числе отменённая в этом окне) ещё идёт,
+                // дожидаемся её, а не получаем код 1618.
+                if (isMsi)
+                {
+                    await WaitForWindowsInstallerAsync(actionLabel, processName, status, cancellationToken);
+                }
 
-            using var process = new Process { StartInfo = startInfo };
-            process.Start();
+                var run = await RunOnceAsync(fileName, isMsi ? WithMsiLog(arguments, actionLabel) : arguments, actionLabel, processName, status, cancellationToken);
 
-            // Вывод читаем и отбрасываем: иначе заполненный канал может подвесить шумный установщик.
-            var stdOutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-            var stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);
-            await process.WaitForExitAsync(cancellationToken);
-            await stdOutTask;
-            var stdErr = await stdErrTask;
+                if (isMsi && run.ExitCode == ExitCodeInstallerBusy && attempt < MaxBusyAttempts)
+                {
+                    _logger.Warning($"{actionLabel} ({processName})", $"Windows Installer занят (код 1618), повтор {attempt + 1} из {MaxBusyAttempts}");
+                    continue;
+                }
 
-            var success = process.ExitCode is 0 or ExitCodeRebootRequired;
-            if (success)
-            {
-                _logger.Info($"{actionLabel} ({processName})",
-                    process.ExitCode == ExitCodeRebootRequired
-                        ? "Успешно завершена, требуется перезагрузка"
-                        : "Успешно завершена");
+                return LogResult(run, actionLabel, processName);
             }
-            else if (actionLabel == DefaultActionLabel)
-            {
-                _logger.Error($"{actionLabel} ({processName})", $"Код завершения: {process.ExitCode}", stdErr);
-            }
-            else
-            {
-                // Деинсталляторы бывают с нестандартными кодами (Chromium возвращает 19 при успехе): итог проверяется по реестру.
-                _logger.Warning($"{actionLabel} ({processName})", $"Код завершения: {process.ExitCode} (результат проверяется по реестру)", stdErr);
-            }
-
-            return new InstallResult(success, process.ExitCode, success ? null : stdErr);
         }
         catch (OperationCanceledException)
         {
-            _logger.Warning($"{actionLabel} ({processName})", "Отменена пользователем");
+            _logger.Warning($"{actionLabel} ({processName})",
+                isMsi
+                    ? "Отменена пользователем. Windows Installer может ещё завершать начатую операцию в фоне — следующий запуск дождётся её окончания"
+                    : "Отменена пользователем");
             throw;
         }
         catch (Exception ex)
@@ -117,4 +114,140 @@ public sealed class InstallerService : IInstallerService
             return new InstallResult(false, -1, ex.Message);
         }
     }
+
+    private async Task<(int ExitCode, string StdErr)> RunOnceAsync(
+        string fileName,
+        string arguments,
+        string actionLabel,
+        string processName,
+        IProgress<string>? status,
+        CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+
+        using var process = new Process { StartInfo = startInfo };
+        process.Start();
+        _logger.Info($"{actionLabel} ({processName})", "Запущена, ожидание завершения");
+
+        // Вывод читаем и отбрасываем: иначе заполненный канал может подвесить шумный установщик.
+        var stdOutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        var exitTask = process.WaitForExitAsync(cancellationToken);
+
+        // Тихий установщик ничего не показывает: без счётчика непонятно, идёт установка или всё зависло.
+        var stopwatch = Stopwatch.StartNew();
+        var nextLog = HeartbeatLogInterval;
+        using var timer = new PeriodicTimer(HeartbeatInterval);
+        while (!exitTask.IsCompleted)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.WhenAny(exitTask, timer.WaitForNextTickAsync(cancellationToken).AsTask());
+            if (exitTask.IsCompleted)
+            {
+                break;
+            }
+
+            status?.Report(HeartbeatMessage(actionLabel, stopwatch.Elapsed));
+            if (stopwatch.Elapsed >= nextLog)
+            {
+                _logger.Info($"{actionLabel} ({processName})", $"Выполняется уже {(int)stopwatch.Elapsed.TotalMinutes} мин");
+                nextLog += HeartbeatLogInterval;
+            }
+        }
+
+        await exitTask;
+        await stdOutTask;
+        var stdErr = await stdErrTask;
+        return (process.ExitCode, stdErr);
+    }
+
+    private InstallResult LogResult((int ExitCode, string StdErr) run, string actionLabel, string processName)
+    {
+        var success = run.ExitCode is 0 or ExitCodeRebootRequired;
+        if (success)
+        {
+            _logger.Info($"{actionLabel} ({processName})",
+                run.ExitCode == ExitCodeRebootRequired
+                    ? "Успешно завершена, требуется перезагрузка"
+                    : "Успешно завершена");
+        }
+        else if (actionLabel == DefaultActionLabel)
+        {
+            _logger.Error($"{actionLabel} ({processName})", $"Код завершения: {run.ExitCode}", run.StdErr);
+        }
+        else
+        {
+            // Деинсталляторы бывают с нестандартными кодами (Chromium возвращает 19 при успехе): итог проверяется по реестру.
+            _logger.Warning($"{actionLabel} ({processName})", $"Код завершения: {run.ExitCode} (результат проверяется по реестру)", run.StdErr);
+        }
+
+        return new InstallResult(success, run.ExitCode, success ? null : run.StdErr);
+    }
+
+    private async Task WaitForWindowsInstallerAsync(string actionLabel, string processName, IProgress<string>? status, CancellationToken cancellationToken)
+    {
+        if (!WindowsInstallerState.IsBusy())
+        {
+            return;
+        }
+
+        var action = $"{actionLabel} ({processName})";
+        _logger.Warning(action, "Windows Installer занят другой установкой, ожидание её окончания");
+        var stopwatch = Stopwatch.StartNew();
+
+        while (WindowsInstallerState.IsBusy())
+        {
+            if (stopwatch.Elapsed > MaxInstallerWait)
+            {
+                _logger.Error(action, "Windows Installer не освободился за отведённое время, установка запускается как есть");
+                return;
+            }
+
+            status?.Report($"Ждём окончания другой установки Windows: {FormatElapsed(stopwatch.Elapsed)}. " +
+                           "Обычно это незавершённая операция КриптоПро или обновление Windows — окно трогать не нужно.");
+            await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+        }
+
+        _logger.Info(action, $"Windows Installer освободился через {FormatElapsed(stopwatch.Elapsed)}");
+    }
+
+    /// <summary>Добавляет подробный журнал msiexec рядом с журналом приложения: по нему видно, на каком действии пакет задержался.</summary>
+    private string WithMsiLog(string arguments, string actionLabel)
+    {
+        if (arguments.Contains(" /l", StringComparison.OrdinalIgnoreCase))
+        {
+            return arguments;
+        }
+
+        try
+        {
+            var directory = _configService.ResolvePath(_configService.Current.Logging.LogDirectory);
+            Directory.CreateDirectory(directory);
+            var logPath = Path.Combine(directory, $"msi-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.log");
+            _logger.Info($"{actionLabel} (msiexec.exe)", $"Подробный журнал установщика: {logPath}");
+            return $"{arguments} /l*v \"{logPath}\"";
+        }
+        catch (Exception)
+        {
+            return arguments;
+        }
+    }
+
+    private static string HeartbeatMessage(string actionLabel, TimeSpan elapsed)
+    {
+        var message = $"{actionLabel} выполняется: {FormatElapsed(elapsed)}.";
+        return elapsed < TimeSpan.FromMinutes(3)
+            ? message
+            : $"{message} Крупные пакеты (КриптоПро CSP) могут ставиться долго — не закрывайте окно и не отменяйте шаг.";
+    }
+
+    private static string FormatElapsed(TimeSpan elapsed) => $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
 }
