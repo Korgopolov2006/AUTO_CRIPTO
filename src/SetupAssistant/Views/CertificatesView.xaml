@@ -67,9 +67,9 @@
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Владелец" Binding="{Binding Owner}" Width="1.5*" MinWidth="140" />
-                        <DataGridTextColumn Header="Организация" Binding="{Binding Organization}" Width="1.5*" MinWidth="120" />
-                        <DataGridTextColumn Header="Действителен до" Binding="{Binding ValidTo, StringFormat='dd.MM.yyyy'}" Width="Auto" />
+                        <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Владелец" Binding="{Binding Owner}" Width="1.5*" MinWidth="140" />
+                        <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Организация" Binding="{Binding Organization}" Width="1.5*" MinWidth="120" />
+                        <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Действителен до" Binding="{Binding ValidTo, StringFormat='dd.MM.yyyy'}" Width="Auto" />
                     </DataGrid.Columns>
                 </DataGrid>
 

@@ -33,7 +33,7 @@
             <DataGrid x:Name="EntriesGrid" ItemsSource="{Binding Entries}" SelectionMode="Extended"
                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Дата и время" Binding="{Binding Timestamp, StringFormat='dd.MM.yyyy HH:mm:ss'}" Width="Auto" />
+                    <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Дата и время" Binding="{Binding Timestamp, StringFormat='dd.MM.yyyy HH:mm:ss'}" Width="Auto" />
                     <DataGridTemplateColumn Header="Уровень" Width="Auto">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
@@ -58,9 +58,9 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Действие" Binding="{Binding Action}" Width="1.8*" />
-                    <DataGridTextColumn Header="Результат" Binding="{Binding Result}" Width="1.8*" />
-                    <DataGridTextColumn Header="Ошибка" Binding="{Binding ErrorText}" Width="2*" />
+                    <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Действие" Binding="{Binding Action}" Width="1.8*" MinWidth="140" />
+                    <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Результат" Binding="{Binding Result}" Width="1.8*" MinWidth="160" />
+                    <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Ошибка" Binding="{Binding ErrorText}" Width="2*" MinWidth="160" />
                 </DataGrid.Columns>
             </DataGrid>
 

@@ -115,11 +115,11 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn Header="Компонент" Binding="{Binding Name}" Width="2*" />
-                    <DataGridTextColumn Header="Статус" Binding="{Binding Status, Converter={StaticResource StatusToText}}" Width="1.2*" />
-                    <DataGridTextColumn Header="Найденная версия" Binding="{Binding InstalledVersion}" Width="1.3*" />
-                    <DataGridTextColumn Header="Рекомендуемая версия" Binding="{Binding RecommendedVersion}" Width="1.3*" />
-                    <DataGridTextColumn Header="Описание / ошибка" Binding="{Binding ErrorMessage}" Width="2.5*" />
+                    <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Компонент" Binding="{Binding Name}" Width="2*" MinWidth="140" />
+                    <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Статус" Binding="{Binding Status, Converter={StaticResource StatusToText}}" Width="1.2*" MinWidth="100" />
+                    <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Найденная версия" Binding="{Binding InstalledVersion}" Width="1.3*" MinWidth="90" />
+                    <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Рекомендуемая версия" Binding="{Binding RecommendedVersion}" Width="1.3*" MinWidth="90" />
+                    <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Описание / ошибка" Binding="{Binding ErrorMessage}" Width="2.5*" MinWidth="200" />
                     <DataGridTemplateColumn Header="" Width="Auto">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
