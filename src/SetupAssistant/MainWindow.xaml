@@ -69,6 +69,11 @@
                         <ui:FontIcon Glyph="&#xEB95;" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="PIN-код носителя" Tag="{x:Type vm:TokenPinViewModel}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xE72E;" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
                 <ui:NavigationViewItem Content="Журнал" Tag="{x:Type vm:LogViewerViewModel}">
                     <ui:NavigationViewItem.Icon>
                         <ui:FontIcon Glyph="&#xE8A5;" />

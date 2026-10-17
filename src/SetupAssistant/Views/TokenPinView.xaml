@@ -1,0 +1,122 @@
+<UserControl x:Class="SetupAssistant.Views.TokenPinView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:SetupAssistant.Controls"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700">
+
+    <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      Visibility="{Binding ShowForm, Converter={StaticResource BoolToVisibility}}">
+            <StackPanel Margin="36,28,36,28" MaxWidth="680" HorizontalAlignment="Left">
+                <TextBlock Text="PIN-код носителя" Style="{StaticResource PageTitleStyle}" />
+                <TextBlock Text="Смена пароля электронной подписи — так же, как в «Панели управления Рутокен»"
+                           Style="{StaticResource PageSubtitleStyle}" />
+
+                <!-- Носитель -->
+                <TextBlock Text="Носитель" Style="{StaticResource SectionTitleStyle}" />
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,20">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <ui:FontIcon Glyph="&#xE88E;" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Center">
+                                <ui:FontIcon.Style>
+                                    <Style TargetType="ui:FontIcon">
+                                        <Setter Property="Foreground" Value="{StaticResource StatusNeutralBrush}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasToken}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource StatusOkBrush}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:FontIcon.Style>
+                            </ui:FontIcon>
+                            <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                        </StackPanel>
+
+                        <ComboBox ItemsSource="{Binding Tokens}" SelectedItem="{Binding SelectedToken}"
+                                  DisplayMemberPath="DisplayName" HorizontalAlignment="Stretch"
+                                  ui:ControlHelper.Header="Выберите носитель"
+                                  Visibility="{Binding HasToken, Converter={StaticResource BoolToVisibility}}" />
+
+
+                        <TextBlock Text="{Binding DriverProblem}" Style="{StaticResource MutedTextStyle}" Margin="0,8,0,0"
+                                   Foreground="{StaticResource StatusWarningBrush}">
+                            <TextBlock.Visibility>
+                                <Binding Path="DriverProblem" Converter="{StaticResource NullToCollapsed}" />
+                            </TextBlock.Visibility>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Смена PIN -->
+                <TextBlock Text="Смена PIN-кода" Style="{StaticResource SectionTitleStyle}" />
+                <Border Style="{StaticResource CardStyle}" IsEnabled="{Binding HasToken}">
+                    <StackPanel>
+                        <ComboBox ItemsSource="{Binding KindOptions}" SelectedValuePath="Value" DisplayMemberPath="Title"
+                                  SelectedValue="{Binding SelectedKind}" HorizontalAlignment="Stretch"
+                                  ui:ControlHelper.Header="Какой PIN-код изменить" Margin="0,0,0,14" />
+
+                        <!-- Предупреждение о счётчике попыток / блокировке -->
+                        <Border Margin="0,0,0,14" Padding="12,10" CornerRadius="6" BorderThickness="1"
+                                BorderBrush="{StaticResource StatusWarningBrush}"
+                                Visibility="{Binding HasPinWarning, Converter={StaticResource BoolToVisibility}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <ui:FontIcon Glyph="&#xE7BA;" FontSize="16" Foreground="{StaticResource StatusWarningBrush}"
+                                             VerticalAlignment="Top" Margin="0,2,10,0" />
+                                <TextBlock Grid.Column="1" Text="{Binding PinWarning}" TextWrapping="Wrap" />
+                            </Grid>
+                        </Border>
+
+                        <PasswordBox x:Name="CurrentPin" ui:ControlHelper.Header="Текущий PIN-код" MaxLength="32"
+                                     ui:PasswordBoxHelper.PasswordRevealMode="Peek" Margin="0,0,0,12" />
+                        <PasswordBox x:Name="NewPin" ui:ControlHelper.Header="Новый PIN-код" MaxLength="32"
+                                     ui:PasswordBoxHelper.PasswordRevealMode="Peek" Margin="0,0,0,12" />
+                        <PasswordBox x:Name="ConfirmPin" ui:ControlHelper.Header="Подтверждение нового PIN-кода" MaxLength="32"
+                                     ui:PasswordBoxHelper.PasswordRevealMode="Peek" Margin="0,0,0,8" />
+
+                        <TextBlock Style="{StaticResource MutedTextStyle}" Margin="0,0,0,14"
+                                   Text="Новый PIN-код: от 6 до 32 символов, латинские буквы, цифры и спецсимволы. Запомните его: восстановить PIN-код нельзя, а после нескольких неверных вводов носитель блокируется." />
+
+                        <!-- Результат -->
+                        <TextBlock Text="{Binding ResultMessage}" TextWrapping="Wrap" Margin="0,0,0,14"
+                                   Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground" Value="{StaticResource StatusErrorBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ResultSuccess}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource StatusOkBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Изменить PIN-код" Style="{StaticResource AccentButtonStyle}" Padding="20,6"
+                                    IsEnabled="{Binding CanChange}" Click="OnChangeClick" />
+                            <ui:ProgressRing Width="20" Height="20" Margin="14,0,0,0" IsActive="{Binding IsChanging}"
+                                             Visibility="{Binding IsChanging, Converter={StaticResource BoolToVisibility}}" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Драйверы носителей не установлены -->
+        <controls:EmptyState Glyph="&#xE72E;" Title="Драйверы носителей не найдены"
+                             Hint="Чтобы менять PIN-код, нужны драйверы Рутокен (или JaCarta). Установите их мастером настройки."
+                             Visibility="{Binding HasNoDriver, Converter={StaticResource BoolToVisibility}}">
+            <controls:EmptyState.Action>
+                <Button Content="Открыть мастер настройки" Style="{StaticResource AccentButtonStyle}"
+                        Command="{Binding OpenSetupCommand}" />
+            </controls:EmptyState.Action>
+        </controls:EmptyState>
+    </Grid>
+</UserControl>
