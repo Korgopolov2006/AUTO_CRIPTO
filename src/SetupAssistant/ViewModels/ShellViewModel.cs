@@ -94,5 +94,5 @@ public partial class ShellViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private static void Exit() => System.Windows.Application.Current.Shutdown();
+    private static void Exit() => System.Windows.Application.Current.MainWindow?.Close();
 }
