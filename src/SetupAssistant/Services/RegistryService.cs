@@ -83,7 +83,8 @@ public sealed class RegistryService : IRegistryService
                     displayName,
                     productKey?.GetValue("DisplayVersion") as string,
                     productKey?.GetValue("InstallLocation") as string,
-                    productKey?.GetValue("UninstallString") as string));
+                    productKey?.GetValue("UninstallString") as string,
+                    productKeyName));
             }
         }
         catch (Exception)

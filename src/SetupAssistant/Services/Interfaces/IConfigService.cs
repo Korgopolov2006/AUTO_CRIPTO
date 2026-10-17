@@ -7,6 +7,9 @@ public interface IConfigService
 {
     AppConfig Current { get; }
 
+    /// <summary>Откуда загружена конфигурация: файл рядом с exe, данные внутри единого exe или значения по умолчанию.</summary>
+    string ConfigSource { get; }
+
     /// <summary>Загружает конфигурацию с диска. Если файл отсутствует или повреждён — создаёт конфигурацию по умолчанию.</summary>
     AppConfig Load();
 

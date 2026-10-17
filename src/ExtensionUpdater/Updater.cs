@@ -25,7 +25,7 @@ internal static class Updater
 
     private sealed record Latest(string Version, string Codebase, string? Sha256);
 
-    public static async Task<int> RunAsync(string appDir, bool checkOnly, bool prune, bool askToPrune)
+    public static async Task<int> RunAsync(string appDir, bool checkOnly, bool prune, bool askToPrune, bool pruneOnly = false)
     {
         var configPath = Path.Combine(appDir, "Config", "Config.json");
         if (!File.Exists(configPath))
@@ -37,6 +37,12 @@ internal static class Updater
 
         var text = File.ReadAllText(configPath);
         var extensions = ReadExtensions(text);
+
+        if (pruneOnly)
+        {
+            Console.WriteLine($"Папка приложения: {appDir}");
+            return HandleStaleFiles(appDir, extensions, checkOnly: false, prune: true, askToPrune: false) > 0 ? 1 : 0;
+        }
 
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("SetupAssistant-ExtensionUpdater/1.0");
@@ -85,11 +91,18 @@ internal static class Updater
         }
 
         Console.WriteLine();
+        Console.WriteLine("Дистрибутивы:");
+        var installers = await InstallerUpdater.RunAsync(appDir, text, checkOnly, prune);
+        text = installers.Text;
+        updated += installers.Updated;
+        failed += installers.Failed;
+
+        Console.WriteLine();
         if (updated > 0)
         {
             File.Copy(configPath, configPath + ".bak", overwrite: true);
             File.WriteAllText(configPath, text, Utf8);
-            Console.WriteLine($"Обновлено расширений: {updated}. Config.json изменён (копия: Config.json.bak).");
+            Console.WriteLine($"Обновлено: {updated}. Config.json изменён (копия: Config.json.bak).");
         }
         else if (!checkOnly && failed == 0)
         {

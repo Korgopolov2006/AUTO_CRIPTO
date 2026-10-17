@@ -16,9 +16,18 @@ public sealed class NavigationService : INavigationService
         _serviceProvider = serviceProvider;
     }
 
-    public void NavigateTo<TViewModel>() where TViewModel : class
+    public void NavigateTo<TViewModel>() where TViewModel : class => NavigateTo(typeof(TViewModel));
+
+    public void NavigateTo(Type viewModelType)
     {
-        CurrentViewModel = _serviceProvider.GetService(typeof(TViewModel));
+        var previous = CurrentViewModel;
+        CurrentViewModel = _serviceProvider.GetService(viewModelType);
+        if (!ReferenceEquals(previous, CurrentViewModel))
+        {
+            (previous as INavigationAware)?.OnNavigatedFrom();
+        }
+
+        (CurrentViewModel as INavigationAware)?.OnNavigatedTo();
         CurrentViewModelChanged?.Invoke(this, EventArgs.Empty);
     }
 }

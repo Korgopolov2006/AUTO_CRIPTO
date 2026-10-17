@@ -3,62 +3,101 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700"
-             Background="{DynamicResource BackgroundBrush}">
-    <DockPanel Margin="32">
-        <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,16">
-            <Button Content="← Назад" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding GoBackCommand}" Margin="0,0,12,0" />
-            <TextBlock Text="Настройки" Style="{StaticResource PageTitleStyle}" Margin="0" VerticalAlignment="Center" />
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700">
+
+    <DockPanel Margin="36,28,36,0">
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="Настройки" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Text="Оформление, сведения о программе и параметры из файла конфигурации" Style="{StaticResource PageSubtitleStyle}" />
         </StackPanel>
 
-        <Button DockPanel.Dock="Top" Content="Перезагрузить конфигурацию" Style="{StaticResource PrimaryButtonStyle}"
-                HorizontalAlignment="Left" Margin="0,0,0,16" Command="{Binding ReloadConfigCommand}" />
-
         <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel>
-                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+            <StackPanel Margin="0,0,12,28" MaxWidth="900" HorizontalAlignment="Left">
+
+                <TextBlock Text="Оформление" Style="{StaticResource SectionTitleStyle}" />
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,20">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Тема" FontWeight="SemiBold" />
+                            <TextBlock Text="«Как в Windows» следует за системной темой приложений." Style="{StaticResource MutedTextStyle}" Margin="0,2,0,0" />
+                        </StackPanel>
+                        <ComboBox Grid.Column="1" Width="200" ItemsSource="{Binding ThemeOptions}"
+                                  SelectedValuePath="Value" DisplayMemberPath="Title" SelectedValue="{Binding SelectedTheme}" />
+                    </Grid>
+                </Border>
+
+                <TextBlock Text="О программе" Style="{StaticResource SectionTitleStyle}" />
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,20">
                     <StackPanel>
-                        <TextBlock Text="Общие сведения" Style="{StaticResource SectionTitleStyle}" />
-                        <TextBlock Text="{Binding Config.AppName, StringFormat='Название: {0}'}" Margin="0,4,0,0" />
-                        <TextBlock Text="{Binding Config.AppVersion, StringFormat='Версия: {0}'}" Margin="0,4,0,0" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" MinHeight="28" />
+                                <RowDefinition Height="Auto" MinHeight="28" />
+                                <RowDefinition Height="Auto" MinHeight="28" />
+                                <RowDefinition Height="Auto" MinHeight="28" />
+                                <RowDefinition Height="Auto" MinHeight="28" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="Название" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Top" Margin="0,4,0,0" />
+                            <TextBlock Grid.Column="1" Text="{Binding Config.AppName}" TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="1" Text="Версия" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Top" Margin="0,4,0,0" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding Config.AppVersion}" />
+                            <TextBlock Grid.Row="2" Text="Среда" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Top" Margin="0,4,0,0" />
+                            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding RuntimeText}" TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="3" Text="Конфигурация" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Top" Margin="0,4,0,0" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding ConfigSource}" TextWrapping="Wrap" />
+                            <TextBlock Grid.Row="4" Text="Журналы" Style="{StaticResource MutedTextStyle}" VerticalAlignment="Top" Margin="0,4,0,0" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding LogFolder}" TextWrapping="Wrap" />
+                        </Grid>
+                        <WrapPanel Margin="0,12,0,0">
+                            <Button Content="Копировать сведения" Margin="0,0,8,0" Command="{Binding CopyAboutInfoCommand}" />
+                            <Button Content="Открыть папку журналов" Command="{Binding OpenLogFolderCommand}" />
+                        </WrapPanel>
                     </StackPanel>
                 </Border>
 
-                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <TextBlock Text="Конфигурация" Style="{StaticResource SectionTitleStyle}" />
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,20">
                     <StackPanel>
-                        <TextBlock Text="Минимально допустимые версии" Style="{StaticResource SectionTitleStyle}" />
-                        <TextBlock Text="{Binding Config.MinVersions.CryptoProCsp, StringFormat='КриптоПро CSP: {0}'}" Margin="0,4,0,0" />
+                        <TextBlock Text="Минимально допустимые версии" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <TextBlock Text="{Binding Config.MinVersions.CryptoProCsp, StringFormat='КриптоПро CSP: {0}'}" />
                         <TextBlock Text="{Binding Config.MinVersions.CryptoProBrowserPlugin, StringFormat='КриптоПро Browser Plugin: {0}'}" Margin="0,4,0,0" />
                         <TextBlock Text="{Binding Config.MinVersions.ChromiumGost, StringFormat='Chromium GOST: {0}'}" Margin="0,4,0,0" />
                         <TextBlock Text="{Binding Config.MinVersions.KonturPlugin, StringFormat='Контур.Плагин: {0}'}" Margin="0,4,0,0" />
+
+                        <TextBlock Text="Параметры проверки" FontWeight="SemiBold" Margin="0,16,0,6" />
+                        <TextBlock Text="{Binding Config.CheckSettings.TokenWaitTimeoutSeconds, StringFormat='Таймаут ожидания носителя, сек: {0}'}" />
+                        <TextBlock Text="{Binding Config.CheckSettings.CertificateExpiryWarningDays, StringFormat='Предупреждение об истечении сертификата, дней: {0}'}" Margin="0,4,0,0" />
+
+                        <Button Content="Перезагрузить конфигурацию" HorizontalAlignment="Left" Margin="0,16,0,0"
+                                Command="{Binding ReloadConfigCommand}" />
                     </StackPanel>
                 </Border>
 
-                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
+                <TextBlock Text="Расширения браузеров" Style="{StaticResource SectionTitleStyle}" />
+                <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
-                        <TextBlock Text="Расширения браузеров" Style="{StaticResource SectionTitleStyle}" />
-                        <TextBlock Margin="0,4,0,8" TextWrapping="Wrap"
+                        <TextBlock TextWrapping="Wrap"
                                    Text="Локальные .crx сравниваются с последними версиями в Chrome Web Store. Для обновления замените .crx в Appendices и укажите новую версию в Config.json." />
-                        <Button Content="Проверить версии расширений" Style="{StaticResource PrimaryButtonStyle}"
-                                HorizontalAlignment="Left" Command="{Binding CheckExtensionUpdatesCommand}" />
+                        <Button Content="Проверить версии расширений" HorizontalAlignment="Left" Margin="0,12,0,0"
+                                Command="{Binding CheckExtensionUpdatesCommand}" />
                         <ItemsControl ItemsSource="{Binding ExtensionUpdates}" Margin="0,12,0,0">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <StackPanel Margin="0,0,0,6">
+                                    <StackPanel Margin="0,0,0,8">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding Summary}" />
+                                        <TextBlock Text="{Binding Summary}" Style="{StaticResource MutedTextStyle}" />
                                     </StackPanel>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                    </StackPanel>
-                </Border>
-
-                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,16">
-                    <StackPanel>
-                        <TextBlock Text="Параметры проверки" Style="{StaticResource SectionTitleStyle}" />
-                        <TextBlock Text="{Binding Config.CheckSettings.TokenWaitTimeoutSeconds, StringFormat='Таймаут ожидания носителя, сек: {0}'}" Margin="0,4,0,0" />
-                        <TextBlock Text="{Binding Config.CheckSettings.CertificateExpiryWarningDays, StringFormat='Предупреждение об истечении сертификата, дней: {0}'}" Margin="0,4,0,0" />
                     </StackPanel>
                 </Border>
             </StackPanel>

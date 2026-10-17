@@ -4,27 +4,37 @@
   "LogoPath": "Resources/logo.png",
 
   // Дистрибутивы из папки Appendices. Kind: Exe | Msi.
+  // Поля для утилиты ExtensionUpdater.exe (запускается на компьютере с интернетом):
+  //   UpdateUrl / DownloadUrl — откуда брать новую версию (без обоих дистрибутив зафиксирован и не обновляется);
+  //   UpdateWarmupUrl — страница, которую нужно открыть перед скачиванием (сайт выдаёт файл по сессионной куке);
+  //   ExpectedSigner — подстрока имени владельца подписи: файл с другой или недействительной подписью отвергается
+  //   (проверка действует и при скачивании во время установки).
   "Installers": {
-    // CSPSetup-5.0.12000.exe — фирменный бутстраппер без документированного тихого режима,
-    // поэтому используется MSI-пакет через msiexec /qn.
+    // Версия зафиксирована заказчиком: 5.0.12000, не обновляется. MSI ставится тихо через msiexec /qn.
     "CryptoProCsp": {
       "Path": "Appendices\\Крипто Про Windows\\csp-x64-rus.msi",
       "Kind": "Msi",
       "SilentArgs": ""
     },
-    // Отдельный дистрибутив cadesplugin.exe в Appendices отсутствует.
-    // Добавьте файл и укажите путь, чтобы шаг установки Browser Plugin выполнялся.
+    // КриптоПро ЭЦП Browser plug-in: хост ru.cryptopro.nmcades + COM CAdESCOM (SFX с Setup.exe).
+    // Ключи установщика: -silent без окон, -norestart без перезагрузки, -noroot не ставить корневые сертификаты
+    // из архива (по умолчанию -root; у заказчика УЦ ставятся политиками), -noyandex не ставить Яндекс.Браузер.
+    // Для Chromium GOST расширение КриптоПро встроено в браузер.
     "CryptoProBrowserPlugin": {
-      "Path": "",
+      "Path": "Appendices\\КриптоПро ЭЦП Browser plug-in\\cadesplugin.exe",
+      "UpdateUrl": "https://cryptopro.ru/products/cades/plugin/get_2_0",
+      "UpdateWarmupUrl": "https://cryptopro.ru/products/cades/plugin",
+      "ExpectedSigner": "CRYPTO-PRO",
       "Kind": "Exe",
-      "SilentArgs": ""
+      "SilentArgs": "-silent -noroot -noyandex -norestart"
     },
     // Chromium GOST: последняя версия берётся из GitHub API (deemru/Chromium-Gost), файл выбирается
     // по regex. Ставится для всех пользователей (--system-level). Path — запасной вариант без сети.
     "ChromiumGost": {
-      "Path": "Appendices\\chromium-gost-152.0.7977.134-windows-amd64-installer.exe",
+      "Path": "Appendices\\chromium-gost-152.0.7977.149-windows-amd64-installer.exe",
       "DownloadUrl": "https://api.github.com/repos/deemru/Chromium-Gost/releases/latest",
       "DownloadAssetRegex": "windows-amd64-installer\\.exe$",
+      "ExpectedSigner": "CRYPTO-PRO",
       "Kind": "Exe",
       "SilentArgs": "--system-level --do-not-launch-chrome"
     },
@@ -33,6 +43,7 @@
     "KonturPlugin": {
       "Path": "Appendices\\DiagPlugin_user.003074.exe",
       "DownloadUrl": "https://help.kontur.ru/DiagPlugin.exe",
+      "ExpectedSigner": "Kontur",
       "Kind": "Exe",
       "SilentArgs": "/S"
     },
@@ -40,6 +51,8 @@
     // нужен расширению «Госуслуги»). Подписан Ростелекомом, MSI ставится тихо: msiexec /qn.
     "GosuslugiPlugin": {
       "Path": "Appendices\\Плагин Госуслуг\\IFCPlugin-x64.msi",
+      "UpdateUrl": "https://ds-plugin.gosuslugi.ru/plugin/upload/assets/distrib/IFCPlugin-x64.msi",
+      "ExpectedSigner": "Rostelecom",
       "Kind": "Msi",
       "SilentArgs": ""
     },
@@ -47,6 +60,8 @@
     // https://www.rutoken.ru/support/download/windows/ (лицензионное соглашение принято заказчиком).
     "RutokenDriver": {
       "Path": "Appendices\\Рутокен\\rtDrivers.x64.msi",
+      "UpdateUrl": "https://download.rutoken.ru/Rutoken/Drivers/Current/rtDrivers.x64.msi",
+      "ExpectedSigner": "Aktiv",
       "Kind": "Msi",
       "SilentArgs": ""
     },
@@ -68,7 +83,7 @@
   // сравнивать с зашитым номером не с чем. CryptoProCsp — фиксированная версия.
   "RecommendedVersions": {
     "CryptoProCsp": "5.0.12000",
-    "CryptoProBrowserPlugin": "2.0.14000",
+    "CryptoProBrowserPlugin": "2.0.15820",
     "ChromiumGost": "",
     "KonturPlugin": ""
   },
@@ -94,8 +109,33 @@
     ],
     "Hosts": [
       { "Name": "ru.cryptopro.nmcades", "Description": "КриптоПро ЭЦП Browser plug-in" },
-      { "Name": "kontur.plugin", "Description": "Контур.Плагин" },
+      { "Name": "kd.nc", "Description": "Контур.Плагин (Диаг.Плагин)" },
       { "Name": "ru.rtlabs.ifcplugin", "Description": "Плагин Госуслуг" }
+    ]
+  },
+
+  // Откат настройки (экран «Удалить компоненты»). Порядок обратный установке: браузер и плагины, затем драйвер, последним — КриптоПро CSP.
+  // Находятся по названию в «Программах и компонентах» (HKLM и HKCU). MSI удаляется через msiexec /x по коду продукта
+  // (у КриптоПро в реестре стоит /I — «изменить», его не используем); EXE — командой из реестра плюс Args.
+  // ProcessPathContains — процессы, которые нужно закрыть перед удалением.
+  // Ключи, ключевые контейнеры и содержимое токена не удаляются; ветки HKCU\SOFTWARE\Crypto Pro (контейнеры) в очистку не входят.
+  "Uninstall": {
+    "Products": [
+      { "Name": "Контур.Плагин (Диаг.Плагин)", "DisplayNamePatterns": [ "Диаг.Плагин", "Контур.Плагин" ], "Kind": "Exe", "Args": "/S", "ProcessPathContains": "\\SkbKontur\\" },
+      { "Name": "Плагин Госуслуг", "DisplayNamePatterns": [ "Плагин пользователя систем электронного правительства" ], "Kind": "Msi" },
+      { "Name": "Chromium GOST", "DisplayNamePatterns": [ "Chromium-Gost" ], "Kind": "Exe", "Args": "--force-uninstall", "ProcessPathContains": "\\Chromium\\Application\\" },
+      { "Name": "КриптоПро ЭЦП Browser plug-in", "DisplayNamePatterns": [ "КриптоПро ЭЦП Browser plug-in", "CryptoPro Browser plug-in" ], "Kind": "Msi" },
+      { "Name": "Драйверы Рутокен", "DisplayNamePatterns": [ "Драйверы Рутокен", "Rutoken Drivers" ], "Kind": "Msi" },
+      { "Name": "КриптоПро CSP", "DisplayNamePatterns": [ "КриптоПро CSP", "CryptoPro CSP" ], "Kind": "Msi" }
+    ],
+    "LeftoverPaths": [
+      "%ProgramData%\\Crypto Pro\\Installer Cache\\CADESCOM_*",
+      "%ProgramData%\\Crypto Pro\\Installer Cache\\CryptoPro_CSP_*",
+      "%LOCALAPPDATA%\\SkbKontur",
+      "%APPDATA%\\Rostelecom\\IFCPlugin"
+    ],
+    "LeftoverRegistryKeys": [
+      "HKCU\\SOFTWARE\\SKBKontur"
     ]
   },
 
@@ -109,14 +149,14 @@
 
   // Офлайн-установка расширений: .crx копируются в RepositoryDirectory, рядом создаётся
   // updates.xml, ID вносятся в политику ExtensionInstallForcelist перечисленных браузеров.
-  // Id вычислен из соответствующего .pem; при переупаковке .crx очистите Id — он будет
-  // вычислен заново из PemPath автоматически.
+  // Id берётся из этого файла; Chromium определяет итоговый ID расширения по ключу в manifest.json.
+  // Chromium GOST читает политики из SOFTWARE\Policies\Chromium (проверено по его chrome.dll),
+  // Google Chrome — из SOFTWARE\Policies\Google\Chrome.
   "Extensions": {
     "RepositoryDirectory": "%ProgramData%\\SetupAssistant\\Extensions",
     "PolicyRegistryKeys": [
       "SOFTWARE\\Policies\\Google\\Chrome\\ExtensionInstallForcelist",
-      "SOFTWARE\\Policies\\Chromium\\ExtensionInstallForcelist",
-      "SOFTWARE\\Policies\\ChromiumGost\\ExtensionInstallForcelist"
+      "SOFTWARE\\Policies\\Chromium\\ExtensionInstallForcelist"
     ],
     // Проверка новых версий в Chrome Web Store при запуске. Во внутренней сети без интернета
     // тихо пропускается; новые .crx скачивает ExtensionUpdater.exe на компьютере с интернетом.

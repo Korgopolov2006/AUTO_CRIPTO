@@ -18,4 +18,7 @@ public interface IInstallerService
     Task<InstallResult> InstallMsiAsync(string msiPath, string additionalArgs = "", CancellationToken cancellationToken = default);
 
     Task<InstallResult> InstallExeAsync(string exePath, string silentArgs = "", CancellationToken cancellationToken = default);
+
+    /// <summary>Запускает произвольную команду (например, деинсталлятор) и ждёт завершения; actionLabel попадает в журнал.</summary>
+    Task<InstallResult> RunAsync(string fileName, string arguments, string actionLabel, CancellationToken cancellationToken = default);
 }

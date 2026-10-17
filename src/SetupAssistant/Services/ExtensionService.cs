@@ -99,6 +99,91 @@ public sealed class ExtensionService : IExtensionService
     public IReadOnlyList<ComponentInfo> CheckAllExtensions() =>
         _configService.Current.Extensions.Items.Select(CheckExtension).ToList();
 
+    public ComponentInfo CheckDeviceManagement()
+    {
+        var reasons = DetectManagement();
+        var managed = reasons.Count > 0;
+
+        return new ComponentInfo
+        {
+            Type = ComponentType.BrowserExtensionCryptoPro,
+            Name = "Управление компьютером (домен / MDM)",
+            Description = managed
+                ? $"Компьютер управляется ({string.Join(", ", reasons)}): Chromium применит политику установки расширений из локальной папки"
+                : "Расширения из локальной папки через политику Chromium применяются только на управляемых компьютерах",
+            Status = managed ? StatusLevel.Ok : StatusLevel.Warning,
+            ErrorMessage = managed
+                ? null
+                : "Компьютер не в домене и не управляется MDM: Chromium помечает политику установки расширений как [BLOCKED] и ставит только расширения из " +
+                  "Интернет-магазина Chrome. Если магазин недоступен, расширения не установятся: включите компьютер в домен или используйте MDM."
+        };
+    }
+
+    private static List<string> DetectManagement()
+    {
+        var reasons = new List<string>();
+
+        try
+        {
+            const int netSetupDomainName = 3;
+            if (NetGetJoinInformation(null, out var name, out var joinStatus) == 0)
+            {
+                NetApiBufferFree(name);
+                if (joinStatus == netSetupDomainName)
+                {
+                    reasons.Add("домен Active Directory");
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Нет доступа к netapi32 — определяем остальные признаки.
+        }
+
+        // Те же системные вызовы, которыми Chromium решает, «корпоративный» ли компьютер.
+        try
+        {
+            if (NetGetAadJoinInformation(null, out var aadInfo) >= 0 && aadInfo != IntPtr.Zero)
+            {
+                NetFreeAadJoinInformation(aadInfo);
+                reasons.Add("Azure AD");
+            }
+        }
+        catch (Exception)
+        {
+            // Функция недоступна в этой версии Windows.
+        }
+
+        try
+        {
+            if (IsDeviceRegisteredWithManagement(out var registered, 0, null) >= 0 && registered != 0)
+            {
+                reasons.Add("MDM");
+            }
+        }
+        catch (Exception)
+        {
+            // mdmregistration.dll отсутствует — признак не определён.
+        }
+
+        return reasons;
+    }
+
+    [System.Runtime.InteropServices.DllImport("netapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int NetGetJoinInformation(string? server, out IntPtr name, out int status);
+
+    [System.Runtime.InteropServices.DllImport("netapi32.dll")]
+    private static extern int NetApiBufferFree(IntPtr buffer);
+
+    [System.Runtime.InteropServices.DllImport("netapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int NetGetAadJoinInformation(string? tenantId, out IntPtr joinInfo);
+
+    [System.Runtime.InteropServices.DllImport("netapi32.dll")]
+    private static extern void NetFreeAadJoinInformation(IntPtr joinInfo);
+
+    [System.Runtime.InteropServices.DllImport("mdmregistration.dll", ExactSpelling = true, CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    private static extern int IsDeviceRegisteredWithManagement(out int isRegistered, int upnLength, System.Text.StringBuilder? upn);
+
     public ComponentInfo CheckCryptoProExtension() => CheckByRole(ExtensionRole.CryptoPro, "Расширение КриптоПро");
 
     public ComponentInfo CheckKonturExtension() => CheckByRole(ExtensionRole.Kontur, "Расширение Контур");

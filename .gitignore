@@ -6,6 +6,9 @@ obj/
 *.suo
 Logs/
 
+# Результат сборки единого exe (tools/Build-SingleExe.ps1)
+/dist/
+
 # Репозиторий публичный: дистрибутивы (лицензионное ПО) и приватные ключи расширений не публикуем.
 # Раскладка файлов в Appendices описана в README.md.
 /src/SetupAssistant/Appendices/

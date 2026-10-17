@@ -6,8 +6,7 @@ namespace SetupAssistant.Services;
 /// <inheritdoc cref="IBrowserService"/>
 public sealed class BrowserService : IBrowserService
 {
-    private const string KonturPluginDisplayNamePattern = "Контур.Плагин";
-    private const string KonturPluginDisplayNamePatternAlt = "Kontur";
+    private static readonly string[] KonturPluginDisplayNamePatterns = { "Диаг.Плагин", "Контур.Плагин", "Diag.Plugin", "Kontur" };
     private const string GosuslugiPluginDisplayNamePattern = "Плагин пользователя систем электронного правительства";
 
     private readonly IRegistryService _registryService;
@@ -30,8 +29,11 @@ public sealed class BrowserService : IBrowserService
         var minVersion = isGost ? config.MinVersions.ChromiumGost : null;
         var recommendedVersion = isGost ? config.RecommendedVersions.ChromiumGost : null;
 
+        // Обязателен только браузер с поддержкой ГОСТ (Chromium GOST); остальные — по желанию, их отсутствие не ошибка.
+        var missingStatus = browser.RequiresGostSupport ? StatusLevel.Error : StatusLevel.NotChecked;
+
         var status = product is null
-            ? StatusLevel.Error
+            ? missingStatus
             : (isGost
                 ? _versionService.EvaluateStatus(product.DisplayVersion, minVersion, recommendedVersion)
                 : StatusLevel.Ok);
@@ -45,7 +47,9 @@ public sealed class BrowserService : IBrowserService
             RecommendedVersion = recommendedVersion,
             Description = browser.RequiresGostSupport
                 ? "Браузер с поддержкой ГОСТ-шифрования"
-                : "Браузер, совместимый с расширениями электронной подписи",
+                : product is null
+                    ? "Не установлен — не требуется"
+                    : "Браузер, совместимый с расширениями электронной подписи",
             Status = status,
             ErrorMessage = status == StatusLevel.Error
                 ? (product is null ? $"{browser.Name} не установлен" : $"Версия {product.DisplayVersion} ниже минимально допустимой {minVersion}")
@@ -74,22 +78,27 @@ public sealed class BrowserService : IBrowserService
     public ComponentInfo CheckKonturPlugin()
     {
         var config = _configService.Current;
-        var product = _registryService.FindInstalledProduct(KonturPluginDisplayNamePattern)
-                      ?? _registryService.FindInstalledProduct(KonturPluginDisplayNamePatternAlt);
+        var product = KonturPluginDisplayNamePatterns
+            .Select(_registryService.FindInstalledProduct)
+            .FirstOrDefault(p => p is not null);
 
-        var status = _versionService.EvaluateStatus(product?.DisplayVersion, config.MinVersions.KonturPlugin, config.RecommendedVersions.KonturPlugin);
+        // Установщик Контура ставит плагин для текущего пользователя и называет его «Диаг.Плагин»; версия есть и в HKCU\SOFTWARE\SKBKontur.
+        var installedVersion = product?.DisplayVersion
+                               ?? _registryService.ReadValue("HKCU", @"SOFTWARE\SKBKontur\DiagPlugin", "Version");
+
+        var status = _versionService.EvaluateStatus(installedVersion, config.MinVersions.KonturPlugin, config.RecommendedVersions.KonturPlugin);
 
         return new ComponentInfo
         {
             Type = ComponentType.KonturPlugin,
             Name = "Контур.Плагин",
-            InstalledVersion = product?.DisplayVersion,
+            InstalledVersion = installedVersion,
             MinimumVersion = config.MinVersions.KonturPlugin,
             RecommendedVersion = config.RecommendedVersions.KonturPlugin,
             Description = "Плагин для работы с электронной подписью на порталах Контур",
             Status = status,
             ErrorMessage = status == StatusLevel.Error
-                ? (product is null ? "Контур.Плагин не установлен" : $"Версия {product.DisplayVersion} ниже минимально допустимой {config.MinVersions.KonturPlugin}")
+                ? (installedVersion is null ? "Контур.Плагин не установлен" : $"Версия {installedVersion} ниже минимально допустимой {config.MinVersions.KonturPlugin}")
                 : null
         };
     }

@@ -11,6 +11,26 @@ public interface IDialogService
 
     bool Confirm(string message, string title = "Подтверждение");
 
+    /// <summary>
+    /// Показывает модальное окно «ожидается действие пользователя» и сразу возвращает управление: окно висит, пока
+    /// вызывающий код ждёт, и закрывается через <see cref="IActionPrompt.Dispose"/>. Если задана <paramref name="cancelText"/>,
+    /// в окне есть кнопка отказа — она отменяет <see cref="IActionPrompt.Cancelled"/>.
+    /// </summary>
+    /// <param name="showAfter">Показать окно только если ожидание затянулось (иначе оно мигало бы на быстрых операциях).</param>
+    IActionPrompt ShowActionPrompt(string title, string message, string? cancelText = null, TimeSpan? showAfter = null);
+
+    /// <summary>Сейчас на экране окно ожидания действия пользователя.</summary>
+    bool IsActionPromptVisible { get; }
+
+    event EventHandler? ActionPromptVisibilityChanged;
+
     /// <summary>Открывает диалог сохранения файла и возвращает выбранный путь, либо null при отмене.</summary>
     string? ShowSaveFileDialog(string defaultFileName, string filter);
+}
+
+/// <summary>Открытое окно ожидания действия пользователя. Dispose закрывает его.</summary>
+public interface IActionPrompt : IDisposable
+{
+    /// <summary>Отменяется, когда пользователь нажал кнопку отказа в окне.</summary>
+    CancellationToken Cancelled { get; }
 }
