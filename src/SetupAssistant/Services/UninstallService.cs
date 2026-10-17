@@ -188,10 +188,22 @@ public sealed partial class UninstallService : IUninstallService
         var result = await _installerService.RunAsync(file, arguments, Action, status, cancellationToken);
 
         // Код возврата может быть «нужна перезагрузка» или «уже удалено», поэтому итог определяет реестр.
-        if (FindProduct(definition) is null)
+        var stillListed = FindProduct(definition) is not null;
+        step.NeedsReboot = result.Success && (result.RebootRequired || stillListed);
+
+        if (!stillListed)
         {
             step.Status = StatusLevel.Ok;
-            step.Details = result.RebootRequired ? "Удалено, для завершения требуется перезагрузка" : "Удалено";
+            step.Details = result.RebootRequired ? "Удалено, для завершения требуется перезагрузка компьютера" : "Удалено";
+            return;
+        }
+
+        // Установщик отчитался об успехе, но запись о программе осталась: Windows убирает её только после перезагрузки.
+        if (result.Success)
+        {
+            step.Status = StatusLevel.Warning;
+            step.Details = "Удаление выполнено, но программа исчезнет из списка только после перезагрузки компьютера";
+            _logger.Warning($"{Action}: {definition.Name}", "Удаление выполнено, запись остаётся до перезагрузки компьютера");
             return;
         }
 
