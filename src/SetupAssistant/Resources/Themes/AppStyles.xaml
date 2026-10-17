@@ -102,6 +102,14 @@
         <Setter Property="MinHeight" Value="92" />
     </Style>
 
+    <!-- Текст в ячейках таблиц переносится по словам, а не уходит за границу окна; полный текст виден во всплывающей подсказке -->
+    <Style x:Key="DataGridWrapTextStyle" TargetType="TextBlock">
+        <Setter Property="TextWrapping" Value="Wrap" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Margin" Value="0,7" />
+        <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
+    </Style>
+
     <!-- Таблицы -->
     <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
         <Setter Property="AutoGenerateColumns" Value="False" />
@@ -111,7 +119,7 @@
         <Setter Property="HeadersVisibility" Value="Column" />
         <Setter Property="GridLinesVisibility" Value="Horizontal" />
         <Setter Property="RowHeaderWidth" Value="0" />
-        <Setter Property="RowHeight" Value="38" />
+        <Setter Property="MinRowHeight" Value="38" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
         <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
