@@ -27,6 +27,9 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
     /// <summary>Установки, фактически выполненные в текущем запуске: если проверка после них не прошла, вероятно, нужна перезагрузка.</summary>
     private readonly HashSet<SetupStepKind> _installedInThisRun = new();
 
+    /// <summary>Установки, отклонённые пакетом до перезагрузки Windows: их проверка не пройдёт, пока компьютер не перезагружен.</summary>
+    private readonly HashSet<SetupStepKind> _rebootFirstInThisRun = new();
+
     public SetupOrchestrationService(
         IConfigService configService,
         IInstallerService installerService,
@@ -64,6 +67,7 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         var installers = _configService.Current.Installers;
         _options = options ?? new SetupRunOptions();
         _installedInThisRun.Clear();
+        _rebootFirstInThisRun.Clear();
 
         foreach (var step in steps)
         {
@@ -207,13 +211,16 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
             return;
         }
 
-        if (!_installedInThisRun.Contains(installKind) && !WindowsInstallerState.IsRebootPending())
+        var rebootFirst = _rebootFirstInThisRun.Contains(installKind);
+        if (!rebootFirst && !_installedInThisRun.Contains(installKind) && !WindowsInstallerState.IsRebootPending())
         {
             return;
         }
 
         step.NeedsReboot = true;
-        step.Details = $"{step.Details} Установка выполнена, но компонент ещё не виден системе — обычно это решается перезагрузкой компьютера.".Trim();
+        step.Details = rebootFirst
+            ? $"{step.Details} Компонент не установлен: сначала нужна перезагрузка компьютера, затем повторите установку.".Trim()
+            : $"{step.Details} Установка выполнена, но компонент ещё не виден системе — обычно это решается перезагрузкой компьютера.".Trim();
         _logger.Warning($"Настройка: {step.Title}", "Проверка не прошла после установки: вероятно, нужна перезагрузка компьютера");
     }
 
@@ -313,10 +320,14 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         var result = await _installerService.InstallAsync(installer, status, cancellationToken);
 
         step.Status = result.Success ? StatusLevel.Ok : StatusLevel.Error;
-        step.NeedsReboot = result.Success && result.RebootRequired;
+        step.NeedsReboot = result.Success ? result.RebootRequired : result.RebootBeforeRetry;
         if (result.Success)
         {
             _installedInThisRun.Add(step.Kind);
+        }
+        else if (result.RebootBeforeRetry)
+        {
+            _rebootFirstInThisRun.Add(step.Kind);
         }
 
         step.Details = result.Success

@@ -46,6 +46,11 @@ public sealed class HeadlessRunner
                 return await SupportBundleAsync(options.SupportBundlePath);
             }
 
+            if (options.Uninstall)
+            {
+                return await UninstallAsync();
+            }
+
             return options.Check ? await CheckAsync(options) : await SilentAsync(options);
         }
         catch (Exception ex)
@@ -139,6 +144,43 @@ public sealed class HeadlessRunner
 
         var failures = steps.Where(s => s.Status is StatusLevel.Error or StatusLevel.Warning).Select(s => $"{s.Title}: {s.Details}").ToList();
         ExportReport(options, _services.GetRequiredService<IWorkplaceStatusService>().Summary, failures, duration);
+        return errors > 0 ? 2 : warnings > 0 ? 1 : 0;
+    }
+
+    /// <summary>Откат настройки без окна: те же шаги, что на экране «Удаление»; личные сертификаты не удаляются.</summary>
+    private async Task<int> UninstallAsync()
+    {
+        _services.GetRequiredService<ILoggingService>().Info("Тихое удаление", "Запуск без окна (--uninstall)");
+
+        var service = _services.GetRequiredService<IUninstallService>();
+        var steps = service.BuildPlan(new UninstallOptions(RemovePersonalCertificates: false));
+        var total = steps.Count;
+        var finished = 0;
+
+        var progress = new SyncProgress<SetupStepModel>(step =>
+        {
+            if (step.Status is StatusLevel.InProgress or StatusLevel.NotChecked)
+            {
+                return;
+            }
+
+            finished++;
+            Print($"[{finished}/{total}] {step.Title}: {step.Status}" + (string.IsNullOrEmpty(step.Details) ? string.Empty : $" — {step.Details}"));
+        });
+
+        var started = DateTime.Now;
+        await service.RunAsync(steps, progress);
+        var duration = DateTime.Now - started;
+
+        var errors = steps.Count(s => s.Status == StatusLevel.Error);
+        var warnings = steps.Count(s => s.Status == StatusLevel.Warning);
+
+        Print($"Готово за {(int)duration.TotalMinutes:00}:{duration.Seconds:00}. Ошибок: {errors}, предупреждений: {warnings}.");
+        if (steps.Any(s => s.NeedsReboot))
+        {
+            Print("Для завершения удаления требуется перезагрузка компьютера.");
+        }
+
         return errors > 0 ? 2 : warnings > 0 ? 1 : 0;
     }
 

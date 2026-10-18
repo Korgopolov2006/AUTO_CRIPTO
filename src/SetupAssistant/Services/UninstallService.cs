@@ -189,6 +189,14 @@ public sealed partial class UninstallService : IUninstallService
 
         // Код возврата может быть «нужна перезагрузка» или «уже удалено», поэтому итог определяет реестр.
         var stillListed = FindProduct(definition) is not null;
+
+        // Деинсталлятор NSIS (Контур.Плагин) возвращает управление сразу, а запись о программе убирает через несколько секунд.
+        for (var i = 0; stillListed && result.Success && i < 20; i++)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            stillListed = FindProduct(definition) is not null;
+        }
+
         step.NeedsReboot = result.Success && (result.RebootRequired || stillListed);
 
         if (!stillListed)

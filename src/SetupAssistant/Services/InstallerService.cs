@@ -15,6 +15,9 @@ public sealed class InstallerService : IInstallerService
     /// <summary>Код msiexec «другая установка уже выполняется».</summary>
     private const int ExitCodeInstallerBusy = 1618;
 
+    /// <summary>Код msiexec «фатальная ошибка при установке» (в том числе отказ пакета до перезагрузки).</summary>
+    private const int ExitCodeFatalInstall = 1603;
+
     /// <summary>Сколько повторов делать, если Windows Installer занят в момент запуска.</summary>
     private const int MaxBusyAttempts = 3;
 
@@ -77,6 +80,7 @@ public sealed class InstallerService : IInstallerService
     {
         var processName = Path.GetFileName(fileName);
         var isMsi = processName.Equals("msiexec.exe", StringComparison.OrdinalIgnoreCase);
+        string? msiLogPath = null;
 
         try
         {
@@ -89,7 +93,13 @@ public sealed class InstallerService : IInstallerService
                     await WaitForWindowsInstallerAsync(actionLabel, processName, status, cancellationToken);
                 }
 
-                var run = await RunOnceAsync(fileName, isMsi ? WithMsiLog(arguments, actionLabel) : arguments, actionLabel, processName, status, cancellationToken);
+                var runArguments = arguments;
+                if (isMsi)
+                {
+                    (runArguments, msiLogPath) = WithMsiLog(arguments, actionLabel);
+                }
+
+                var run = await RunOnceAsync(fileName, runArguments, actionLabel, processName, status, cancellationToken);
 
                 if (isMsi && run.ExitCode == ExitCodeInstallerBusy && attempt < MaxBusyAttempts)
                 {
@@ -97,7 +107,7 @@ public sealed class InstallerService : IInstallerService
                     continue;
                 }
 
-                return LogResult(run, actionLabel, processName);
+                return LogResult(run, actionLabel, processName, msiLogPath);
             }
         }
         catch (OperationCanceledException)
@@ -169,7 +179,7 @@ public sealed class InstallerService : IInstallerService
         return (process.ExitCode, stdErr);
     }
 
-    private InstallResult LogResult((int ExitCode, string StdErr) run, string actionLabel, string processName)
+    private InstallResult LogResult((int ExitCode, string StdErr) run, string actionLabel, string processName, string? msiLogPath)
     {
         var success = run.ExitCode is 0 or ExitCodeRebootRequired;
         if (success)
@@ -178,6 +188,13 @@ public sealed class InstallerService : IInstallerService
                 run.ExitCode == ExitCodeRebootRequired
                     ? "Успешно завершена, требуется перезагрузка"
                     : "Успешно завершена");
+        }
+        else if (run.ExitCode == ExitCodeFatalInstall && MsiLogShowsRebootRequired(msiLogPath))
+        {
+            // Пакет КриптоПро отказывается ставиться, пока Windows не перезагружена после удаления прошлой версии; в тихом режиме видно только код 1603.
+            const string message = "Windows ждёт перезагрузки после удаления прошлой версии (установщик пакета отказывается ставиться до неё). Перезагрузите компьютер и повторите установку";
+            _logger.Warning($"{actionLabel} ({processName})", $"Код завершения: {run.ExitCode}: {message}");
+            return new InstallResult(false, run.ExitCode, message, RebootBeforeRetry: true);
         }
         else if (actionLabel == DefaultActionLabel)
         {
@@ -220,11 +237,11 @@ public sealed class InstallerService : IInstallerService
     }
 
     /// <summary>Добавляет подробный журнал msiexec рядом с журналом приложения: по нему видно, на каком действии пакет задержался.</summary>
-    private string WithMsiLog(string arguments, string actionLabel)
+    private (string Arguments, string? LogPath) WithMsiLog(string arguments, string actionLabel)
     {
         if (arguments.Contains(" /l", StringComparison.OrdinalIgnoreCase))
         {
-            return arguments;
+            return (arguments, null);
         }
 
         try
@@ -233,11 +250,31 @@ public sealed class InstallerService : IInstallerService
             Directory.CreateDirectory(directory);
             var logPath = Path.Combine(directory, $"msi-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.log");
             _logger.Info($"{actionLabel} (msiexec.exe)", $"Подробный журнал установщика: {logPath}");
-            return $"{arguments} /l*v \"{logPath}\"";
+            return ($"{arguments} /l*v \"{logPath}\"", logPath);
         }
         catch (Exception)
         {
-            return arguments;
+            return (arguments, null);
+        }
+    }
+
+    /// <summary>В журнале msiexec есть отказ пакета «сначала перезагрузка» (действие вида RebootRequiredFor…, а не обычная ошибка установки).</summary>
+    private static bool MsiLogShowsRebootRequired(string? logPath)
+    {
+        if (logPath is null || !File.Exists(logPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var stream = new FileStream(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream, System.Text.Encoding.Unicode, detectEncodingFromByteOrderMarks: true);
+            return reader.ReadToEnd().Contains("RebootRequiredFor", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception)
+        {
+            return false;
         }
     }
 
