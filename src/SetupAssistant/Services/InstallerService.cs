@@ -24,6 +24,9 @@ public sealed class InstallerService : IInstallerService
     /// <summary>Деинсталляция КриптоПро CSP на медленных компьютерах занимает около получаса — ждём с запасом.</summary>
     private static readonly TimeSpan MaxInstallerWait = TimeSpan.FromMinutes(60);
 
+    /// <summary>Сколько журнал msiexec может не расти, прежде чем сообщить о возможном зависании (обычные паузы — до минуты).</summary>
+    private static readonly TimeSpan StallThreshold = TimeSpan.FromMinutes(10);
+
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan HeartbeatLogInterval = TimeSpan.FromMinutes(2);
 
@@ -99,7 +102,7 @@ public sealed class InstallerService : IInstallerService
                     (runArguments, msiLogPath) = WithMsiLog(arguments, actionLabel);
                 }
 
-                var run = await RunOnceAsync(fileName, runArguments, actionLabel, processName, status, cancellationToken);
+                var run = await RunOnceAsync(fileName, runArguments, actionLabel, processName, msiLogPath, status, cancellationToken);
 
                 if (isMsi && run.ExitCode == ExitCodeInstallerBusy && attempt < MaxBusyAttempts)
                 {
@@ -130,6 +133,7 @@ public sealed class InstallerService : IInstallerService
         string arguments,
         string actionLabel,
         string processName,
+        string? msiLogPath,
         IProgress<string>? status,
         CancellationToken cancellationToken)
     {
@@ -155,6 +159,9 @@ public sealed class InstallerService : IInstallerService
         // Тихий установщик ничего не показывает: без счётчика непонятно, идёт установка или всё зависло.
         var stopwatch = Stopwatch.StartNew();
         var nextLog = HeartbeatLogInterval;
+        long lastLogSize = -1;
+        var lastGrowth = TimeSpan.Zero;
+        var stallReported = false;
         using var timer = new PeriodicTimer(HeartbeatInterval);
         while (!exitTask.IsCompleted)
         {
@@ -165,7 +172,31 @@ public sealed class InstallerService : IInstallerService
                 break;
             }
 
-            status?.Report(HeartbeatMessage(actionLabel, stopwatch.Elapsed));
+            // Живой установщик пишет в журнал msiexec; если запись встала надолго — он, скорее всего, завис (так бывало после прерванных операций).
+            var logSize = MsiLogSize(msiLogPath);
+            if (logSize != lastLogSize)
+            {
+                lastLogSize = logSize;
+                lastGrowth = stopwatch.Elapsed;
+                stallReported = false;
+            }
+
+            if (msiLogPath is not null && stopwatch.Elapsed - lastGrowth >= StallThreshold)
+            {
+                status?.Report($"{actionLabel}: установщик Windows не подаёт признаков жизни уже {FormatElapsed(stopwatch.Elapsed - lastGrowth)}. " +
+                               "Если так больше 10–15 минут, перезагрузите компьютер и повторите: прерванная ранее операция могла зависнуть.");
+                if (!stallReported)
+                {
+                    stallReported = true;
+                    _logger.Warning($"{actionLabel} ({processName})",
+                        $"Журнал установщика не растёт {(int)(stopwatch.Elapsed - lastGrowth).TotalMinutes} мин — возможно, операция зависла", msiLogPath);
+                }
+            }
+            else
+            {
+                status?.Report(HeartbeatMessage(actionLabel, stopwatch.Elapsed));
+            }
+
             if (stopwatch.Elapsed >= nextLog)
             {
                 _logger.Info($"{actionLabel} ({processName})", $"Выполняется уже {(int)stopwatch.Elapsed.TotalMinutes} мин");
@@ -275,6 +306,18 @@ public sealed class InstallerService : IInstallerService
         catch (Exception)
         {
             return false;
+        }
+    }
+
+    private static long MsiLogSize(string? logPath)
+    {
+        try
+        {
+            return logPath is not null && File.Exists(logPath) ? new FileInfo(logPath).Length : -1;
+        }
+        catch (IOException)
+        {
+            return -1;
         }
     }
 
