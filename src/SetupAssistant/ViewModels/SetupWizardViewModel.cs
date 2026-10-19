@@ -356,6 +356,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         UpdateProgress();
         _cancellationTokenSource = new CancellationTokenSource();
         var stopwatch = Stopwatch.StartNew();
+        var askToRestart = false;
 
         var progress = new Progress<SetupStepModel>(_ => UpdateProgress());
 
@@ -365,6 +366,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
             IsCompleted = true;
             stopwatch.Stop();
             BuildSummary(stopwatch.Elapsed);
+            askToRestart = RebootRequired;
         }
         catch (OperationCanceledException)
         {
@@ -379,6 +381,12 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         {
             IsRunning = false;
             UpdateProgress();
+        }
+
+        // Окно показываем после того, как прогресс снят: настройка закончена, осталось только перезагрузить компьютер.
+        if (askToRestart)
+        {
+            RestartAndResume();
         }
     }
 
@@ -490,10 +498,10 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
     [RelayCommand]
     private void RestartAndResume()
     {
-        if (!_dialogService.Confirm(
-                "Компьютер будет перезагружен через 30 секунд. После входа в систему приложение запустится само и продолжит настройку " +
-                "(потребуется подтвердить запуск от имени администратора).\n\nСохраните открытые документы. Перезагрузить сейчас?",
-                "Перезагрузка"))
+        if (!RebootPrompt.Ask(
+                _dialogService,
+                "настройки",
+                "После входа в систему приложение запустится само и продолжит настройку (потребуется подтвердить запуск от имени администратора)."))
         {
             return;
         }
@@ -502,11 +510,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         {
             // Запоминаем выбранные шаги, которые не завершились успешно: их и продолжим после перезагрузки.
             ResumeRegistration.Register(Steps.Where(s => s.IsSelectable && s.IsSelected && s.Status != StatusLevel.Ok).Select(s => s.Kind));
-            Process.Start(new ProcessStartInfo("shutdown.exe", "/r /t 30 /c \"Перезагрузка для завершения настройки рабочего места\"")
-            {
-                CreateNoWindow = true,
-                UseShellExecute = false
-            });
+            RebootPrompt.Schedule("Перезагрузка для завершения настройки рабочего места");
             _logger.Info("Перезагрузка", "Запланирована перезагрузка через 30 секунд, продолжение настройки зарегистрировано");
             _notifications.Show(ToastKind.Info, "Перезагрузка через 30 секунд", "Отменить: команда shutdown /a в командной строке.");
         }

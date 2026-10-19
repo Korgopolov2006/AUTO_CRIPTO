@@ -12,6 +12,12 @@ public interface IDialogService
     bool Confirm(string message, string title = "Подтверждение");
 
     /// <summary>
+    /// Модальный вопрос с подписями кнопок по смыслу (например, «Перезагрузить сейчас» / «Позже»). Кнопка по умолчанию —
+    /// отказ, чтобы случайный Enter не запустил необратимое действие. true — выбрано <paramref name="acceptText"/>.
+    /// </summary>
+    bool ConfirmChoice(string message, string title, string acceptText, string declineText);
+
+    /// <summary>
     /// Показывает модальное окно «ожидается действие пользователя» и сразу возвращает управление: окно висит, пока
     /// вызывающий код ждёт, и закрывается через <see cref="IActionPrompt.Dispose"/>. Если задана <paramref name="cancelText"/>,
     /// в окне есть кнопка отказа — она отменяет <see cref="IActionPrompt.Cancelled"/>.

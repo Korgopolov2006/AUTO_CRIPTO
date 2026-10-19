@@ -36,12 +36,21 @@ public sealed class DialogService : IDialogService
     public bool Confirm(string message, string title = "Подтверждение") =>
         Show(DialogKind.Question, title, message, "Да", "Нет") == ContentDialogResult.Primary;
 
-    private static ContentDialogResult Show(DialogKind kind, string title, string message, string primaryText, string? closeText)
+    public bool ConfirmChoice(string message, string title, string acceptText, string declineText) =>
+        Show(DialogKind.Warning, title, message, acceptText, declineText, ContentDialogButton.Close) == ContentDialogResult.Primary;
+
+    private static ContentDialogResult Show(
+        DialogKind kind,
+        string title,
+        string message,
+        string primaryText,
+        string? closeText,
+        ContentDialogButton defaultButton = ContentDialogButton.Primary)
     {
         var dispatcher = Application.Current.Dispatcher;
         if (!dispatcher.CheckAccess())
         {
-            return dispatcher.Invoke(() => Show(kind, title, message, primaryText, closeText));
+            return dispatcher.Invoke(() => Show(kind, title, message, primaryText, closeText, defaultButton));
         }
 
         var dialog = new ContentDialog
@@ -50,7 +59,7 @@ public sealed class DialogService : IDialogService
             Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap },
             PrimaryButtonText = primaryText,
             CloseButtonText = closeText ?? string.Empty,
-            DefaultButton = ContentDialogButton.Primary
+            DefaultButton = defaultButton
         };
 
         // Единственная кнопка («ОК») закрывает окно как основная, при подтверждении «Нет» — кнопка закрытия.
