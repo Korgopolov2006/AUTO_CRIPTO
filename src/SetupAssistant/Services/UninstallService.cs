@@ -184,13 +184,34 @@ public sealed partial class UninstallService : IUninstallService
         StopProcesses(definition);
         step.Details = $"Удаляется {product.DisplayName}…";
 
-        var result = await _installerService.RunAsync(file, arguments, Action, cancellationToken);
+        var status = new Progress<string>(message => step.Details = message);
+        var result = await _installerService.RunAsync(file, arguments, Action, status, cancellationToken);
 
         // Код возврата может быть «нужна перезагрузка» или «уже удалено», поэтому итог определяет реестр.
-        if (FindProduct(definition) is null)
+        var stillListed = FindProduct(definition) is not null;
+
+        // Деинсталлятор NSIS (Контур.Плагин) возвращает управление сразу, а запись о программе убирает через несколько секунд.
+        for (var i = 0; stillListed && result.Success && i < 20; i++)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            stillListed = FindProduct(definition) is not null;
+        }
+
+        step.NeedsReboot = result.Success && (result.RebootRequired || stillListed);
+
+        if (!stillListed)
         {
             step.Status = StatusLevel.Ok;
-            step.Details = result.RebootRequired ? "Удалено, для завершения требуется перезагрузка" : "Удалено";
+            step.Details = result.RebootRequired ? "Удалено, для завершения требуется перезагрузка компьютера" : "Удалено";
+            return;
+        }
+
+        // Установщик отчитался об успехе, но запись о программе осталась: Windows убирает её только после перезагрузки.
+        if (result.Success)
+        {
+            step.Status = StatusLevel.Warning;
+            step.Details = "Удаление выполнено, но программа исчезнет из списка только после перезагрузки компьютера";
+            _logger.Warning($"{Action}: {definition.Name}", "Удаление выполнено, запись остаётся до перезагрузки компьютера");
             return;
         }
 

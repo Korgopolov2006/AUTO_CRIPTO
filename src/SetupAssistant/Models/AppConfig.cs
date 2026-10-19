@@ -4,7 +4,11 @@ namespace SetupAssistant.Models;
 public sealed class AppConfig
 {
     public string AppName { get; set; } = "Помощник настройки рабочего места для электронной подписи";
-    public string AppVersion { get; set; } = "1.0.0";
+
+    /// <summary>Версия приложения из сборки; значение в Config.json игнорируется, чтобы номер не расходился с реальной сборкой.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string AppVersion { get; set; } = Helpers.AppVersionInfo.Current;
+
     public string LogoPath { get; set; } = "Resources/logo.png";
 
     public InstallersConfig Installers { get; set; } = new();

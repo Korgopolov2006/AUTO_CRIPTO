@@ -24,6 +24,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
     private readonly ILoggingService _logger;
 
     private CancellationTokenSource? _cancellationTokenSource;
+    private TimeSpan _lastRunDuration;
     private readonly ICollectionView _stepsView;
 
     public ObservableCollection<PreflightCheck> PreflightChecks { get; } = new();
@@ -367,7 +368,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
         catch (OperationCanceledException)
         {
-            _notifications.Show(ToastKind.Warning, "Настройка отменена", "Выполненные шаги остались как есть, остальные не запускались.");
+            _notifications.Show(ToastKind.Warning, "Настройка отменена", "Выполненные шаги остались как есть, остальные не запускались. Если шла установка компонента, Windows может ещё дозавершать её в фоне — следующий запуск дождётся.");
             BuildSummary(stopwatch.Elapsed);
         }
         catch (Exception ex)
@@ -391,6 +392,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
 
     private void BuildSummary(TimeSpan duration)
     {
+        _lastRunDuration = duration;
         var ok = Steps.Count(s => s.Status == StatusLevel.Ok);
         var warnings = Steps.Count(s => s.Status == StatusLevel.Warning);
         var errors = Steps.Count(s => s.Status == StatusLevel.Error);
@@ -399,10 +401,15 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         RebootRequired = Steps.Any(s => s.NeedsReboot);
         HasFailedSteps = Steps.Any(s => s.CanRetry);
 
-        SummaryLevel = errors > 0 ? StatusLevel.Error : warnings > 0 ? StatusLevel.Warning : StatusLevel.Ok;
-        SummaryTitle = errors > 0
-            ? "Настройка завершена с ошибками"
-            : warnings > 0
+        // Ошибки только у проверок, которые, вероятно, пройдут после перезагрузки, — это не провал настройки.
+        var onlyRebootErrors = errors > 0 && Steps.Where(s => s.Status == StatusLevel.Error).All(s => s.NeedsReboot);
+
+        SummaryLevel = errors > 0 && !onlyRebootErrors ? StatusLevel.Error : warnings > 0 || onlyRebootErrors ? StatusLevel.Warning : StatusLevel.Ok;
+        SummaryTitle = onlyRebootErrors
+            ? "Настройка завершена, нужна перезагрузка"
+            : errors > 0
+                ? "Настройка завершена с ошибками"
+                : warnings > 0
                 ? "Настройка завершена с замечаниями"
                 : "Настройка успешно завершена";
 
@@ -415,7 +422,9 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         text += $" · Время: {(int)duration.TotalMinutes:00}:{duration.Seconds:00}";
         if (RebootRequired)
         {
-            text += "\nДля завершения установки требуется перезагрузка компьютера.";
+            text += errors > 0
+                ? "\nЧасть проверок не прошла сразу после установки — обычно они проходят после перезагрузки. Перезагрузите компьютер: настройка продолжится сама."
+                : "\nДля завершения установки требуется перезагрузка компьютера.";
         }
 
         if (HasFailedSteps)
@@ -460,6 +469,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
             var report = new ReportModel
             {
                 SystemInfo = _systemService.GetSystemInfo(),
+                ExecutionDuration = _lastRunDuration,
                 Components = _statusService.Summary.Results.ToList(),
                 Certificates = _certificateService.GetCertificates().ToList(),
                 Errors = Steps.Where(s => s.Status is StatusLevel.Error or StatusLevel.Warning)

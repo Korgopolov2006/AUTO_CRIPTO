@@ -84,7 +84,7 @@ public sealed class NativeMessagingService : INativeMessagingService
                 ? null
                 : brokenIn.Count > 0
                     ? $"Хост зарегистрирован ({string.Join("; ", brokenIn)}), но файл манифеста не найден: переустановите {hint}"
-                    : $"Хост не зарегистрирован: установите или переустановите {hint}"
+                    : $"Не зарегистрирован — появится сам после установки: {hint}"
         };
     }
 }

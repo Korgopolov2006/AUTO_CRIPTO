@@ -3,22 +3,26 @@ using SetupAssistant.Models;
 namespace SetupAssistant.Services.Interfaces;
 
 /// <summary>Результат выполнения тихой установки.</summary>
-public sealed record InstallResult(bool Success, int ExitCode, string? ErrorMessage)
+/// <param name="RebootBeforeRetry">Установка отклонена: Windows ждёт перезагрузки (например, после удаления прошлой версии). Сначала перезагрузка, потом повтор.</param>
+public sealed record InstallResult(bool Success, int ExitCode, string? ErrorMessage, bool RebootBeforeRetry = false)
 {
     /// <summary>Установка прошла, но для завершения требуется перезагрузка (код 3010).</summary>
     public bool RebootRequired => ExitCode == 3010;
 }
 
-/// <summary>Установка MSI/EXE пакетов в тихом (silent) режиме.</summary>
+/// <summary>
+/// Установка MSI/EXE пакетов в тихом (silent) режиме. Перед запуском msiexec ждёт, пока Windows Installer освободится
+/// от другой установки; параметр <c>status</c> получает текст о ходе работы (ожидание, прошедшее время).
+/// </summary>
 public interface IInstallerService
 {
     /// <summary>Устанавливает пакет по его описанию из конфигурации (тип и ключи тихой установки).</summary>
-    Task<InstallResult> InstallAsync(InstallerDefinition installer, CancellationToken cancellationToken = default);
+    Task<InstallResult> InstallAsync(InstallerDefinition installer, IProgress<string>? status = null, CancellationToken cancellationToken = default);
 
-    Task<InstallResult> InstallMsiAsync(string msiPath, string additionalArgs = "", CancellationToken cancellationToken = default);
+    Task<InstallResult> InstallMsiAsync(string msiPath, string additionalArgs = "", IProgress<string>? status = null, CancellationToken cancellationToken = default);
 
-    Task<InstallResult> InstallExeAsync(string exePath, string silentArgs = "", CancellationToken cancellationToken = default);
+    Task<InstallResult> InstallExeAsync(string exePath, string silentArgs = "", IProgress<string>? status = null, CancellationToken cancellationToken = default);
 
     /// <summary>Запускает произвольную команду (например, деинсталлятор) и ждёт завершения; actionLabel попадает в журнал.</summary>
-    Task<InstallResult> RunAsync(string fileName, string arguments, string actionLabel, CancellationToken cancellationToken = default);
+    Task<InstallResult> RunAsync(string fileName, string arguments, string actionLabel, IProgress<string>? status = null, CancellationToken cancellationToken = default);
 }

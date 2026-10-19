@@ -54,8 +54,7 @@ public static class HelpAdvisor
             ComponentType.BrowserExtensionCryptoPro or ComponentType.BrowserExtensionKontur =>
                 "Расширение подключается к браузеру политикой Chromium. На компьютере вне домена политика блокируется ([BLOCKED] в chrome://policy): " +
                 "тогда расширение нужно ставить вручную или ввести компьютер в домен.",
-            ComponentType.NativeMessagingHost =>
-                "Хост регистрируется установкой соответствующего плагина. Переустановите плагин (КриптоПро Browser Plugin, Контур.Плагин или Плагин Госуслуг).",
+            ComponentType.NativeMessagingHost => NativeHostAdvice(c),
             ComponentType.CryptoProReaders =>
                 "Считыватели не найдены. Подключите токен в USB-порт (лучше напрямую, не через разветвитель), проверьте, что запущена служба «Смарт-карты» " +
                 "(services.msc), и убедитесь, что установлен драйвер токена.",
@@ -72,6 +71,27 @@ public static class HelpAdvisor
             ComponentType.KontinentAp => null,
             _ => c.Status == StatusLevel.Error ? "Подробности смотрите в журнале (раздел «Журнал») и приложите пакет для поддержки (Настройки)." : null
         };
+    }
+
+    /// <summary>Совет по хосту native messaging: называет плагин, который его регистрирует, и отличает «не установлен» от «файл потерян».</summary>
+    private static string NativeHostAdvice(ComponentInfo c)
+    {
+        var plugin = c.Name switch
+        {
+            var n when n.Contains("ru.cryptopro.nmcades", StringComparison.OrdinalIgnoreCase) => "КриптоПро ЭЦП Browser plug-in",
+            var n when n.Contains("kd.nc", StringComparison.OrdinalIgnoreCase) => "Контур.Плагин (Диаг.Плагин)",
+            var n when n.Contains("ru.rtlabs.ifcplugin", StringComparison.OrdinalIgnoreCase) => "Плагин Госуслуг",
+            _ => "соответствующий плагин"
+        };
+
+        // Запись в реестре есть, а файла нет — это уже поломка, а не «ещё не установлено».
+        if (c.ErrorMessage?.Contains("манифеста", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return $"Запись хоста есть, но его файл удалён или повреждён. Переустановите «{plugin}» в разделе «Настройка» (отметьте «Переустановить установленные») и перезапустите браузер.";
+        }
+
+        return $"Это не ошибка: хост появляется сам, когда установлен «{plugin}», отдельно его ставить не нужно. " +
+               "Если плагин уже установлен, а хост не виден, переустановите его в разделе «Настройка» и перезапустите браузер.";
     }
 
     /// <summary>Совет по шагу мастера или удаления, завершившемуся предупреждением или ошибкой.</summary>

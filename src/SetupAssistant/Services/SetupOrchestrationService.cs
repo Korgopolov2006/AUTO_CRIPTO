@@ -21,7 +21,14 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
     private readonly IDialogService _dialogService;
     private readonly ITokenPinService _tokenPinService;
     private readonly ILoggingService _logger;
+    private readonly IVersionService _versionService;
     private SetupRunOptions _options = new();
+
+    /// <summary>Установки, фактически выполненные в текущем запуске: если проверка после них не прошла, вероятно, нужна перезагрузка.</summary>
+    private readonly HashSet<SetupStepKind> _installedInThisRun = new();
+
+    /// <summary>Установки, отклонённые пакетом до перезагрузки Windows: их проверка не пройдёт, пока компьютер не перезагружен.</summary>
+    private readonly HashSet<SetupStepKind> _rebootFirstInThisRun = new();
 
     public SetupOrchestrationService(
         IConfigService configService,
@@ -36,8 +43,10 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         ICaCertificateService caCertificateService,
         IDialogService dialogService,
         ITokenPinService tokenPinService,
-        ILoggingService logger)
+        ILoggingService logger,
+        IVersionService versionService)
     {
+        _versionService = versionService;
         _dialogService = dialogService;
         _tokenPinService = tokenPinService;
         _tokenService = tokenService;
@@ -57,6 +66,8 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
     {
         var installers = _configService.Current.Installers;
         _options = options ?? new SetupRunOptions();
+        _installedInThisRun.Clear();
+        _rebootFirstInThisRun.Clear();
 
         foreach (var step in steps)
         {
@@ -78,6 +89,7 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
             try
             {
                 await ExecuteStepAsync(step, installers, cancellationToken);
+                MarkRebootIfLikely(step);
             }
             catch (OperationCanceledException)
             {
@@ -188,6 +200,30 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         }
     }
 
+    /// <summary>
+    /// Проверка не прошла сразу после успешной установки (или Windows ждёт перезагрузки): компоненты часто становятся видны
+    /// системе только после неё. Шаг остаётся с ошибкой, но сводка предложит перезагрузку и продолжение настройки.
+    /// </summary>
+    private void MarkRebootIfLikely(SetupStepModel step)
+    {
+        if (step.PairedInstallKind is not { } installKind || step.Status is StatusLevel.Ok or StatusLevel.Skipped or StatusLevel.NotChecked)
+        {
+            return;
+        }
+
+        var rebootFirst = _rebootFirstInThisRun.Contains(installKind);
+        if (!rebootFirst && !_installedInThisRun.Contains(installKind) && !WindowsInstallerState.IsRebootPending())
+        {
+            return;
+        }
+
+        step.NeedsReboot = true;
+        step.Details = rebootFirst
+            ? $"{step.Details} Компонент не установлен: сначала нужна перезагрузка компьютера, затем повторите установку.".Trim()
+            : $"{step.Details} Установка выполнена, но компонент ещё не виден системе — обычно это решается перезагрузкой компьютера.".Trim();
+        _logger.Warning($"Настройка: {step.Title}", "Проверка не прошла после установки: вероятно, нужна перезагрузка компьютера");
+    }
+
     /// <summary>Проверка уже установленного компонента для шага установки; null — для шага проверки нет.</summary>
     private ComponentInfo? CheckInstalled(SetupStepKind kind) => kind switch
     {
@@ -205,14 +241,30 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
 
     private async Task RunInstall(SetupStepModel step, InstallerDefinition installer, CancellationToken cancellationToken)
     {
+        string? installedVersion = null;
+        var updating = false;
+
         if (!_options.ForceReinstall && CheckInstalled(step.Kind) is { Status: StatusLevel.Ok } existing)
         {
-            step.Status = StatusLevel.Ok;
-            step.Details = string.IsNullOrEmpty(existing.InstalledVersion)
-                ? "Уже установлено — установка не требуется"
-                : $"Уже установлено (версия {existing.InstalledVersion}) — установка не требуется";
-            _logger.Info($"Настройка: {step.Title}", "Пропущено: компонент уже установлен");
-            return;
+            // Chromium GOST выходит часто и не имеет зафиксированной версии: при установке подтягиваем актуальную.
+            var newer = step.Kind == SetupStepKind.InstallChromiumGost
+                ? await FindNewerChromiumVersionAsync(installer, existing.InstalledVersion, cancellationToken)
+                : null;
+
+            if (newer is null)
+            {
+                step.Status = StatusLevel.Ok;
+                step.Details = string.IsNullOrEmpty(existing.InstalledVersion)
+                    ? "Уже установлено — установка не требуется"
+                    : $"Уже установлено (версия {existing.InstalledVersion}), актуальная — установка не требуется";
+                _logger.Info($"Настройка: {step.Title}", "Пропущено: компонент уже установлен");
+                return;
+            }
+
+            updating = true;
+            installedVersion = existing.InstalledVersion;
+            step.Details = $"Обновление: {installedVersion} → {newer}";
+            _logger.Info($"Настройка: {step.Title}", $"Доступна новая версия: установлена {installedVersion}, будет установлена {newer}");
         }
 
         if (!installer.IsConfigured)
@@ -249,21 +301,76 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
                 step.Details = "Не удалось скачать дистрибутив (нет связи или не пройдена проверка подписи), проверьте журнал";
                 return;
             }
+            else if (updating && _versionService.Compare(ExtractVersion(installer.Path), installedVersion) <= 0)
+            {
+                // Встроенный дистрибутив не новее установленного версии: ставить его значило бы понизить версию.
+                step.Status = StatusLevel.Warning;
+                step.Details = $"Установлена версия {installedVersion}; новую версию скачать не удалось, а встроенная не новее. Повторите при наличии интернета";
+                _logger.Warning($"Настройка: {step.Title}", "Обновление пропущено: новую версию скачать не удалось, встроенная не новее установленной");
+                return;
+            }
             else
             {
                 _logger.Warning($"Настройка: {step.Title}", "Скачать последнюю версию не удалось, используется локальный дистрибутив");
             }
         }
 
-        var result = await _installerService.InstallAsync(installer, cancellationToken);
+        var status = new Progress<string>(message => step.Details = message);
+        step.Details = "Установка запущена…";
+        var result = await _installerService.InstallAsync(installer, status, cancellationToken);
 
         step.Status = result.Success ? StatusLevel.Ok : StatusLevel.Error;
-        step.NeedsReboot = result.Success && result.RebootRequired;
+        step.NeedsReboot = result.Success ? result.RebootRequired : result.RebootBeforeRetry;
+        if (result.Success)
+        {
+            _installedInThisRun.Add(step.Kind);
+        }
+        else if (result.RebootBeforeRetry)
+        {
+            _rebootFirstInThisRun.Add(step.Kind);
+        }
+
         step.Details = result.Success
             ? result.RebootRequired
                 ? "Установка завершена, требуется перезагрузка компьютера"
                 : "Установка завершена успешно"
             : result.ErrorMessage;
+    }
+
+    /// <summary>
+    /// Версия Chromium GOST новее установленной: берётся большая из последней на GitHub и встроенной в приложение
+    /// (версия читается из имени файла). null — обновление не нужно или не из чего выбрать.
+    /// </summary>
+    private async Task<string?> FindNewerChromiumVersionAsync(InstallerDefinition installer, string? installedVersion, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(installedVersion))
+        {
+            return null;
+        }
+
+        var candidates = new List<string>();
+        if (!string.IsNullOrWhiteSpace(installer.Path) && ExtractVersion(installer.Path) is { } local)
+        {
+            candidates.Add(local);
+        }
+
+        if (!string.IsNullOrWhiteSpace(installer.DownloadUrl) && !string.IsNullOrWhiteSpace(installer.DownloadAssetRegex))
+        {
+            var assetName = await _downloadService.GetLatestAssetNameAsync(installer.DownloadUrl, installer.DownloadAssetRegex, cancellationToken);
+            if (assetName is not null && ExtractVersion(assetName) is { } online)
+            {
+                candidates.Add(online);
+            }
+        }
+
+        var latest = candidates.OrderByDescending(v => v, Comparer<string>.Create(_versionService.Compare)).FirstOrDefault();
+        return latest is not null && _versionService.Compare(latest, installedVersion) > 0 ? latest : null;
+    }
+
+    private static string? ExtractVersion(string fileNameOrPath)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(Path.GetFileName(fileNameOrPath), @"\d+(\.\d+){2,3}");
+        return match.Success ? match.Value : null;
     }
 
     private async Task InstallCaCertificatesAsync(SetupStepModel step, CancellationToken cancellationToken)

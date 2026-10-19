@@ -9,6 +9,8 @@ namespace SetupAssistant.Services;
 /// <inheritdoc cref="IDownloadService"/>
 public sealed class DownloadService : IDownloadService, IDisposable
 {
+    private static readonly TimeSpan VersionCheckTimeout = TimeSpan.FromSeconds(10);
+
     private readonly ILoggingService _logger;
     private readonly HttpClient _http;
 
@@ -73,7 +75,31 @@ public sealed class DownloadService : IDownloadService, IDisposable
         }
     }
 
-    private async Task<string> ResolveGitHubAssetAsync(string apiUrl, string assetRegex, CancellationToken cancellationToken)
+    public async Task<string?> GetLatestAssetNameAsync(string apiUrl, string assetRegex, CancellationToken cancellationToken = default)
+    {
+        // Общий таймаут клиента — 15 минут (на скачивание); для быстрой проверки версии без связи ждём недолго.
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(VersionCheckTimeout);
+
+        try
+        {
+            return (await FindGitHubAssetAsync(apiUrl, assetRegex, timeout.Token)).Name;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning("Проверка последней версии", "Не выполнена", $"{apiUrl}: {ex.Message}");
+            return null;
+        }
+    }
+
+    private async Task<string> ResolveGitHubAssetAsync(string apiUrl, string assetRegex, CancellationToken cancellationToken) =>
+        (await FindGitHubAssetAsync(apiUrl, assetRegex, cancellationToken)).Url;
+
+    private async Task<(string Name, string Url)> FindGitHubAssetAsync(string apiUrl, string assetRegex, CancellationToken cancellationToken)
     {
         var json = await _http.GetStringAsync(apiUrl, cancellationToken);
         using var doc = JsonDocument.Parse(json);
@@ -81,9 +107,10 @@ public sealed class DownloadService : IDownloadService, IDisposable
 
         foreach (var asset in doc.RootElement.GetProperty("assets").EnumerateArray())
         {
-            if (pattern.IsMatch(asset.GetProperty("name").GetString() ?? string.Empty))
+            var name = asset.GetProperty("name").GetString() ?? string.Empty;
+            if (pattern.IsMatch(name))
             {
-                return asset.GetProperty("browser_download_url").GetString()!;
+                return (name, asset.GetProperty("browser_download_url").GetString()!);
             }
         }
 

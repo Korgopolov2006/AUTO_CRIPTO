@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Http;
 using Microsoft.Win32;
+using SetupAssistant.Helpers;
 using SetupAssistant.Models;
 using SetupAssistant.Services.Interfaces;
 
@@ -165,20 +166,9 @@ public sealed class PreflightService : IPreflightService
     private static PreflightCheck CheckInstallerBusy()
     {
         const string name = "Установщик Windows";
-        try
-        {
-            if (Mutex.TryOpenExisting(@"Global\_MSIExecute", out var mutex))
-            {
-                mutex.Dispose();
-                return new PreflightCheck(name, StatusLevel.Warning, "Сейчас выполняется другая установка. Дождитесь её завершения, иначе установка компонентов может завершиться ошибкой");
-            }
-        }
-        catch (Exception)
-        {
-            // Нет доступа к мьютексу — считаем, что занятости нет.
-        }
-
-        return new PreflightCheck(name, StatusLevel.Ok, "Другие установки не выполняются");
+        return WindowsInstallerState.IsBusy()
+            ? new PreflightCheck(name, StatusLevel.Warning, "Сейчас выполняется другая установка (возможно, незавершённая после отмены). Помощник дождётся её окончания перед установкой каждого компонента")
+            : new PreflightCheck(name, StatusLevel.Ok, "Другие установки не выполняются");
     }
 
     private static bool KeyExists(string subKey)

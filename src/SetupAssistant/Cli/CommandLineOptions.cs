@@ -4,6 +4,7 @@ namespace SetupAssistant.Cli;
 public sealed record CommandLineOptions(
     bool Check,
     bool Silent,
+    bool Uninstall,
     bool Resume,
     bool Reinstall,
     bool WithToken,
@@ -15,11 +16,11 @@ public sealed record CommandLineOptions(
     public const int ExitInvalidArguments = 4;
 
     /// <summary>Работа без окна: результат — код возврата, журнал и (по желанию) отчёт.</summary>
-    public bool IsHeadless => Check || Silent || Help || SupportBundlePath is not null || Error is not null;
+    public bool IsHeadless => Check || Silent || Uninstall || Help || SupportBundlePath is not null || Error is not null;
 
     public static CommandLineOptions Parse(IReadOnlyList<string> args)
     {
-        bool check = false, silent = false, resume = false, reinstall = false, withToken = false, help = false;
+        bool check = false, silent = false, uninstall = false, resume = false, reinstall = false, withToken = false, help = false;
         string? report = null, supportBundle = null, error = null;
 
         for (var i = 0; i < args.Count; i++)
@@ -28,6 +29,7 @@ public sealed record CommandLineOptions(
             {
                 case "--check": check = true; break;
                 case "--silent": silent = true; break;
+                case "--uninstall": uninstall = true; break;
                 case "--resume": resume = true; break;
                 case "--reinstall": reinstall = true; break;
                 case "--with-token": withToken = true; break;
@@ -60,12 +62,12 @@ public sealed record CommandLineOptions(
             }
         }
 
-        if (error is null && check && silent)
+        if (error is null && (check ? 1 : 0) + (silent ? 1 : 0) + (uninstall ? 1 : 0) > 1)
         {
-            error = "Режимы --check и --silent нельзя указывать одновременно.";
+            error = "Режимы --check, --silent и --uninstall нельзя указывать одновременно.";
         }
 
-        return new CommandLineOptions(check, silent, resume, reinstall, withToken, help, report, supportBundle, error);
+        return new CommandLineOptions(check, silent, uninstall, resume, reinstall, withToken, help, report, supportBundle, error);
     }
 
     public const string Usage =
@@ -77,6 +79,7 @@ public sealed record CommandLineOptions(
         Режимы без окна (нужны права администратора):
           --check                проверить рабочее место
           --silent               установить и настроить всё, что нужно, без вопросов
+          --uninstall            удалить компоненты, установленные мастером (Chromium GOST не удаляется), без вопросов
         Дополнительно:
           --report <файл>        сохранить отчёт (.pdf или .txt)
           --support-bundle <zip> собрать пакет для поддержки (журналы, диагностика) без окна
