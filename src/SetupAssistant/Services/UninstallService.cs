@@ -80,7 +80,8 @@ public sealed partial class UninstallService : IUninstallService
         {
             Kind = SetupStepKind.RemoveLeftovers,
             Title = "Очистка остаточных файлов и данных",
-            Details = $"Найдено для очистки: папок {ResolveLeftoverDirectories().Count}, веток реестра {ResolveLeftoverRegistryKeys().Count}"
+            Details = $"Найдено для очистки: папок {ResolveLeftoverDirectories().Count + ResolveEmptyFolders().Count}, " +
+                      $"веток реестра {ResolveLeftoverRegistryKeys().Count + ResolveEmptyRegistryBranches().Count + ResolveOrphanProgIds().Count}"
         });
 
         steps.Add(new SetupStepModel
@@ -542,6 +543,63 @@ public sealed partial class UninstallService : IUninstallService
         return !sharedVendors.Contains(segments[1], StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>Папки из конфигурации, в которых не осталось ни одного файла.</summary>
+    private List<string> ResolveEmptyFolders() =>
+        _configService.Current.Uninstall.EmptyLeftoverFolders
+            .Select(Environment.ExpandEnvironmentVariables)
+            .Where(path => IsSafeToDelete(path) && LeftoverCleanup.IsEmptyFolderTree(path))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    /// <summary>Ветки реестра из конфигурации, в которых нет ни одного значения.</summary>
+    private List<(RegistryKey Hive, string SubKey)> ResolveEmptyRegistryBranches()
+    {
+        var found = new List<(RegistryKey, string)>();
+        foreach (var entry in _configService.Current.Uninstall.EmptyLeftoverRegistryKeys)
+        {
+            if (!LeftoverCleanup.TryParseBranch(entry, out var hive, out var subKey))
+            {
+                continue;
+            }
+
+            using var key = hive.OpenSubKey(subKey);
+            if (key is not null && !LeftoverCleanup.RegistryTreeHasValues(key))
+            {
+                found.Add((hive, subKey));
+            }
+        }
+
+        return found;
+    }
+
+    /// <summary>Осиротевшие ProgID с заданными префиксами (без CLSID или с CLSID несуществующего класса).</summary>
+    private List<string> ResolveOrphanProgIds()
+    {
+        var found = new List<string>();
+        foreach (var classesRoot in new[] { @"SOFTWARE\Classes", @"SOFTWARE\WOW6432Node\Classes" })
+        {
+            using var classes = Registry.LocalMachine.OpenSubKey(classesRoot);
+            if (classes is null)
+            {
+                continue;
+            }
+
+            foreach (var prefix in _configService.Current.Uninstall.OrphanProgIdPrefixes.Where(p => p.Length >= 6 && p.EndsWith('.')))
+            {
+                foreach (var name in classes.GetSubKeyNames().Where(n => n.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+                {
+                    using var progId = classes.OpenSubKey(name);
+                    if (progId is not null && LeftoverCleanup.IsOrphanProgId(progId))
+                    {
+                        found.Add($@"{classesRoot}\{name}");
+                    }
+                }
+            }
+        }
+
+        return found;
+    }
+
     private void RemoveLeftovers(SetupStepModel step)
     {
         var folders = 0;
@@ -573,6 +631,49 @@ public sealed partial class UninstallService : IUninstallService
             catch (Exception ex)
             {
                 problems.Add($"{subKey}: {ex.Message}");
+            }
+        }
+
+        // Пустые оболочки: папки без файлов и ветки без значений (в них нет данных, поэтому это безопасно и для «Crypto Pro»).
+        foreach (var directory in ResolveEmptyFolders())
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+                folders++;
+                _logger.Info(Action, $"Удалена пустая папка: {directory}");
+            }
+            catch (Exception ex)
+            {
+                problems.Add($"{directory}: {ex.Message}");
+            }
+        }
+
+        foreach (var (hive, subKey) in ResolveEmptyRegistryBranches())
+        {
+            try
+            {
+                hive.DeleteSubKeyTree(subKey, throwOnMissingSubKey: false);
+                keys++;
+                _logger.Info(Action, $"Удалена пустая ветка реестра: {subKey}");
+            }
+            catch (Exception ex)
+            {
+                problems.Add($"{subKey}: {ex.Message}");
+            }
+        }
+
+        foreach (var progId in ResolveOrphanProgIds())
+        {
+            try
+            {
+                Registry.LocalMachine.DeleteSubKeyTree(progId, throwOnMissingSubKey: false);
+                keys++;
+                _logger.Info(Action, $"Удалён осиротевший ProgID: {progId}");
+            }
+            catch (Exception ex)
+            {
+                problems.Add($"{progId}: {ex.Message}");
             }
         }
 
