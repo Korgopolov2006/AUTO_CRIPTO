@@ -20,7 +20,7 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
 
     <!-- Единственный источник номера версии (SemVer); изменения по версиям описаны в CHANGELOG.md. SDK добавляет хеш коммита. -->
-    <Version>1.4.1</Version>
+    <Version>1.4.2</Version>
     <Product>Помощник настройки рабочего места для электронной подписи</Product>
     <Company>SetupAssistant</Company>
     <Authors>SetupAssistant</Authors>
