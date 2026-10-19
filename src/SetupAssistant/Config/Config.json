@@ -134,7 +134,10 @@
       "%APPDATA%\\Rostelecom\\IFCPlugin"
     ],
     "LeftoverRegistryKeys": [
-      "HKCU\\SOFTWARE\\SKBKontur"
+      "HKCU\\SOFTWARE\\SKBKontur",
+      "HKCU\\SOFTWARE\\Google\\Chrome\\NativeMessagingHosts\\kd.nc",
+      "HKCU\\SOFTWARE\\Chromium\\NativeMessagingHosts\\kd.nc",
+      "HKCU\\SOFTWARE\\Microsoft\\Edge\\NativeMessagingHosts\\kd.nc"
     ]
   },
 
