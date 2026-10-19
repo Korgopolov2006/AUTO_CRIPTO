@@ -11,15 +11,25 @@ public sealed record CommandLineOptions(
     bool Help,
     string? ReportPath,
     string? SupportBundlePath,
-    string? Error)
+    string? Error,
+    IReadOnlyList<string>? UpdaterArgs = null)
 {
     public const int ExitInvalidArguments = 4;
 
+    /// <summary>Режим обновления дистрибутивов и расширений (бывшая отдельная утилита ExtensionUpdater).</summary>
+    public const string UpdateDistributionsMode = "--update-distributions";
+
     /// <summary>Работа без окна: результат — код возврата, журнал и (по желанию) отчёт.</summary>
-    public bool IsHeadless => Check || Silent || Uninstall || Help || SupportBundlePath is not null || Error is not null;
+    public bool IsHeadless => Check || Silent || Uninstall || Help || SupportBundlePath is not null || Error is not null || UpdaterArgs is not null;
 
     public static CommandLineOptions Parse(IReadOnlyList<string> args)
     {
+        // Остальные аргументы принадлежат обновлению (--check и т. д. там означают своё), поэтому разбирает их оно само.
+        if (args.Count > 0 && args[0].Equals(UpdateDistributionsMode, StringComparison.OrdinalIgnoreCase))
+        {
+            return new CommandLineOptions(false, false, false, false, false, false, false, null, null, null, args.Skip(1).ToList());
+        }
+
         bool check = false, silent = false, uninstall = false, resume = false, reinstall = false, withToken = false, help = false;
         string? report = null, supportBundle = null, error = null;
 
@@ -80,6 +90,8 @@ public sealed record CommandLineOptions(
           --check                проверить рабочее место
           --silent               установить и настроить всё, что нужно, без вопросов
           --uninstall            удалить компоненты, установленные мастером (Chromium GOST не удаляется), без вопросов
+          --update-distributions <папка> [--check] [--prune] [--prune-only]
+                                 обновить расширения и дистрибутивы в папке приложения (нужен интернет); папка — с Config\Config.json
         Дополнительно:
           --report <файл>        сохранить отчёт (.pdf или .txt)
           --support-bundle <zip> собрать пакет для поддержки (журналы, диагностика) без окна

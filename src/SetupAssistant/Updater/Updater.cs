@@ -1,3 +1,5 @@
+using System.IO;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -31,7 +33,7 @@ internal static class Updater
         if (!File.Exists(configPath))
         {
             Console.Error.WriteLine($"Не найден файл {configPath}");
-            Console.Error.WriteLine("Положите ExtensionUpdater.exe рядом с SetupAssistant.exe или передайте путь к папке приложения первым аргументом.");
+            Console.Error.WriteLine("Передайте путь к папке приложения (в ней должен лежать Config\\Config.json, например src\\SetupAssistant) первым аргументом.");
             return 2;
         }
 

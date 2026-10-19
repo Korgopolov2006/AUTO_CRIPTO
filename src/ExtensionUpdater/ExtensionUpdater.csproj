@@ -21,8 +21,11 @@
     <Product>Обновление расширений SetupAssistant</Product>
   </PropertyGroup>
 
+  <!-- Код обновления лежит в основном проекте (там он встроен в exe как режим «update-distributions»); здесь он подключён ссылкой,
+       чтобы сборка единого exe могла чистить старые .crx без запуска приложения с правами администратора. -->
   <ItemGroup>
     <Compile Include="..\SetupAssistant\Helpers\Authenticode.cs" Link="Authenticode.cs" />
+    <Compile Include="..\SetupAssistant\Updater\*.cs" LinkBase="Updater" />
   </ItemGroup>
 
 </Project>

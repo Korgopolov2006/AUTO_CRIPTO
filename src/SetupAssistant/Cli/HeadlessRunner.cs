@@ -46,6 +46,12 @@ public sealed class HeadlessRunner
                 return await SupportBundleAsync(options.SupportBundlePath);
             }
 
+            if (options.UpdaterArgs is not null)
+            {
+                // Папка по умолчанию — рядом с exe: так можно обновить распакованное приложение; для единого exe укажите папку с исходниками.
+                return await ExtensionUpdater.UpdaterCli.RunAsync(options.UpdaterArgs.ToArray(), AppContext.BaseDirectory, standalone: false);
+            }
+
             if (options.Uninstall)
             {
                 return await UninstallAsync();
