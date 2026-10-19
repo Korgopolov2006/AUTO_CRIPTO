@@ -1,6 +1,5 @@
 {
   "AppName": "Помощник настройки рабочего места для электронной подписи",
-  "AppVersion": "1.0.0",
   "LogoPath": "Resources/logo.png",
 
   // Дистрибутивы из папки Appendices. Kind: Exe | Msi.

@@ -19,7 +19,8 @@
     <PublishReadyToRun>false</PublishReadyToRun>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
 
-    <Version>1.0.0</Version>
+    <!-- Единственный источник номера версии (SemVer); изменения по версиям описаны в CHANGELOG.md. SDK добавляет хеш коммита. -->
+    <Version>1.2.0</Version>
     <Product>Помощник настройки рабочего места для электронной подписи</Product>
     <Company>SetupAssistant</Company>
     <Authors>SetupAssistant</Authors>
