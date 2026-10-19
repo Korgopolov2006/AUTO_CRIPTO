@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using SetupAssistant.Helpers;
 using SetupAssistant.Models;
 using SetupAssistant.Services.Interfaces;
 
@@ -108,12 +108,14 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
         _cancellationTokenSource = new CancellationTokenSource();
 
         var progress = new Progress<SetupStepModel>(_ => UpdateProgress());
+        var askToRestart = false;
 
         try
         {
             await _uninstallService.RunAsync(Steps.ToList(), progress, _cancellationTokenSource.Token);
             IsCompleted = true;
             RebootRequired = Steps.Any(s => s.NeedsReboot);
+            askToRestart = RebootRequired;
 
             if (Steps.Any(s => s.Status == StatusLevel.Error))
             {
@@ -141,6 +143,12 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
             IsRunning = false;
             UpdateProgress();
         }
+
+        // Окно показываем после того, как прогресс снят: удаление закончено, осталось перезагрузить компьютер.
+        if (askToRestart)
+        {
+            RestartNow();
+        }
     }
 
     [RelayCommand]
@@ -149,20 +157,14 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
     [RelayCommand]
     private void RestartNow()
     {
-        if (!_dialogService.Confirm(
-                "Компьютер будет перезагружен через 30 секунд. Сохраните открытые документы.\n\nПерезагрузить сейчас?",
-                "Перезагрузка"))
+        if (!RebootPrompt.Ask(_dialogService, "удаления"))
         {
             return;
         }
 
         try
         {
-            Process.Start(new ProcessStartInfo("shutdown.exe", "/r /t 30 /c \"Перезагрузка для завершения удаления компонентов\"")
-            {
-                CreateNoWindow = true,
-                UseShellExecute = false
-            });
+            RebootPrompt.Schedule("Перезагрузка для завершения удаления компонентов");
             _logger.Info("Перезагрузка", "Запланирована перезагрузка через 30 секунд для завершения удаления");
             _notifications.Show(ToastKind.Info, "Перезагрузка через 30 секунд", "Отменить: команда shutdown /a в командной строке.");
         }

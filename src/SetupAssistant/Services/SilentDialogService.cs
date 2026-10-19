@@ -28,6 +28,13 @@ public sealed class SilentDialogService : IDialogService
 
     public bool Confirm(string message, string title = "Подтверждение") => true;
 
+    // Без окна ничего не перезагружаем и не запускаем сами: выбор «отказ» оставляет решение администратору.
+    public bool ConfirmChoice(string message, string title, string acceptText, string declineText)
+    {
+        _logger.Info(title, message.Replace("\n", " "));
+        return false;
+    }
+
     public IActionPrompt ShowActionPrompt(string title, string message, string? cancelText = null, TimeSpan? showAfter = null)
     {
         _logger.Info(title, message.Replace("\n", " "));
