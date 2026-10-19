@@ -23,23 +23,45 @@ public static class WindowsInstallerState
     }
 
     /// <summary>
-    /// Windows явно требует перезагрузки (обновления или установка компонентов). Файлы, ожидающие замены при загрузке,
-    /// не учитываются: они остаются на многих исправных компьютерах и ничего не говорят о состоянии установки.
+    /// Части путей компонентов, которые ставит и удаляет приложение. Из отложенных операций с файлами важны только они:
+    /// чужие записи (например, «Игровые службы» Microsoft восстанавливают свою при каждой загрузке) ничего не говорят о настройке.
     /// </summary>
-    public static bool IsRebootPending()
+    private static readonly string[] ManagedPathMarkers =
+    {
+        "Crypto Pro", "CryptoPro", "Rutoken", "Aktiv", "Chromium", "SkbKontur", "Rostelecom", "IFCPlugin"
+    };
+
+    /// <summary>Windows требует перезагрузки по причине, важной для настройки (см. <see cref="GetPendingRebootReason"/>).</summary>
+    public static bool IsRebootPending() => GetPendingRebootReason() is not null;
+
+    /// <summary>
+    /// Причина, по которой перед настройкой стоит перезагрузить компьютер: обновления Windows или отложенное удаление и замена
+    /// файлов наших компонентов. null — ожидающей перезагрузки нет (посторонние отложенные операции не считаются).
+    /// </summary>
+    public static string? GetPendingRebootReason()
     {
         try
         {
-            foreach (var subKey in new[]
-                     {
-                         @"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending",
-                         @"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"
-                     })
+            if (KeyExists(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending")
+                || KeyExists(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired"))
             {
-                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(subKey);
-                if (key is not null)
+                return "Windows ждёт перезагрузки после обновления";
+            }
+
+            using var sessionManager = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager");
+            if (sessionManager?.GetValue("PendingFileRenameOperations") is string[] operations)
+            {
+                var ours = operations
+                    .Where(path => ManagedPathMarkers.Any(marker => path.Contains(marker, StringComparison.OrdinalIgnoreCase)))
+                    .Select(path => System.IO.Path.GetFileName(path.TrimEnd('\\')))
+                    .Where(name => name.Length > 0)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(3)
+                    .ToList();
+
+                if (ours.Count > 0)
                 {
-                    return true;
+                    return $"после удаления или обновления компонентов ждёт перезагрузки замена файлов ({string.Join(", ", ours)})";
                 }
             }
         }
@@ -48,6 +70,12 @@ public static class WindowsInstallerState
             // Нет доступа к реестру — считаем, что перезагрузка не требуется.
         }
 
-        return false;
+        return null;
+    }
+
+    private static bool KeyExists(string subKey)
+    {
+        using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(subKey);
+        return key is not null;
     }
 }
