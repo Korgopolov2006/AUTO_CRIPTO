@@ -182,6 +182,29 @@ public sealed partial class UninstallService : IUninstallService
             return;
         }
 
+        // Запись о программе есть, а деинсталлятора нет (папку убрали или программа обновилась в другую папку версии).
+        if (definition.Kind == InstallerKind.Exe && Path.IsPathRooted(file) && !File.Exists(file))
+        {
+            var alternative = FindSiblingUninstaller(file);
+            if (alternative is not null)
+            {
+                _logger.Warning($"{Action}: {definition.Name}", $"Деинсталлятор из записи не найден ({file}), используется {alternative}");
+                file = alternative;
+            }
+            else
+            {
+                // Удалять нечего: программа уже удалена. Убираем только мёртвую запись, иначе она будет мешать при каждом удалении.
+                var removed = _registryService.RemoveUninstallEntry(product);
+                step.Status = removed ? StatusLevel.Ok : StatusLevel.Warning;
+                step.Details = removed
+                    ? "Файлов программы уже нет — убрана оставшаяся запись в списке программ"
+                    : "Файлов программы уже нет, но запись в списке программ удалить не удалось";
+                _logger.Warning($"{Action}: {definition.Name}", $"Деинсталлятор не найден ({file}): программа уже удалена. " +
+                                                                   (removed ? "Мёртвая запись удалена" : "Запись удалить не удалось"));
+                return;
+            }
+        }
+
         StopProcesses(definition);
         step.Details = $"Удаляется {product.DisplayName}…";
 
@@ -218,6 +241,33 @@ public sealed partial class UninstallService : IUninstallService
 
         step.Status = StatusLevel.Error;
         step.Details = $"Не удалось удалить (код {result.ExitCode}). {result.ErrorMessage}".Trim();
+    }
+
+    /// <summary>
+    /// Деинсталлятор с тем же именем в соседней папке (например, у Контур.Плагина файлы лежат в подпапке версии, а запись в реестре
+    /// указывает на старую). Берётся самый свежий найденный; null — такого файла нет.
+    /// </summary>
+    internal static string? FindSiblingUninstaller(string missingFile)
+    {
+        try
+        {
+            var versionDirectory = Path.GetDirectoryName(missingFile);
+            var parent = versionDirectory is null ? null : Directory.GetParent(versionDirectory);
+            if (parent is null || !parent.Exists)
+            {
+                return null;
+            }
+
+            return parent.EnumerateDirectories()
+                .Select(directory => Path.Combine(directory.FullName, Path.GetFileName(missingFile)))
+                .Where(File.Exists)
+                .OrderByDescending(File.GetLastWriteTimeUtc)
+                .FirstOrDefault();
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -562,10 +612,17 @@ public sealed partial class UninstallService : IUninstallService
                 continue;
             }
 
-            using var key = hive.OpenSubKey(subKey);
-            if (key is not null && !LeftoverCleanup.RegistryTreeHasValues(key))
+            try
             {
-                found.Add((hive, subKey));
+                using var key = hive.OpenSubKey(subKey);
+                if (key is not null && !LeftoverCleanup.RegistryTreeHasValues(key))
+                {
+                    found.Add((hive, subKey));
+                }
+            }
+            catch (Exception)
+            {
+                // Нет доступа к ветке — не трогаем её; добивка не должна ронять удаление.
             }
         }
 
@@ -578,22 +635,29 @@ public sealed partial class UninstallService : IUninstallService
         var found = new List<string>();
         foreach (var classesRoot in new[] { @"SOFTWARE\Classes", @"SOFTWARE\WOW6432Node\Classes" })
         {
-            using var classes = Registry.LocalMachine.OpenSubKey(classesRoot);
-            if (classes is null)
+            try
             {
-                continue;
-            }
-
-            foreach (var prefix in _configService.Current.Uninstall.OrphanProgIdPrefixes.Where(p => p.Length >= 6 && p.EndsWith('.')))
-            {
-                foreach (var name in classes.GetSubKeyNames().Where(n => n.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+                using var classes = Registry.LocalMachine.OpenSubKey(classesRoot);
+                if (classes is null)
                 {
-                    using var progId = classes.OpenSubKey(name);
-                    if (progId is not null && LeftoverCleanup.IsOrphanProgId(progId))
+                    continue;
+                }
+
+                foreach (var prefix in _configService.Current.Uninstall.OrphanProgIdPrefixes.Where(p => p.Length >= 6 && p.EndsWith('.')))
+                {
+                    foreach (var name in classes.GetSubKeyNames().Where(n => n.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
                     {
-                        found.Add($@"{classesRoot}\{name}");
+                        using var progId = classes.OpenSubKey(name);
+                        if (progId is not null && LeftoverCleanup.IsOrphanProgId(progId))
+                        {
+                            found.Add($@"{classesRoot}\{name}");
+                        }
                     }
                 }
+            }
+            catch (Exception)
+            {
+                // Нет доступа к разделу классов — пропускаем; добивка не должна ронять удаление.
             }
         }
 

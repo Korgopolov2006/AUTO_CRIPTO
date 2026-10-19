@@ -43,6 +43,45 @@ public sealed class RegistryService : IRegistryService
         return results;
     }
 
+    public bool RemoveUninstallEntry(InstalledProductInfo product)
+    {
+        // Защита: удаляется только запись внутри раздела Uninstall, найденная этим же сервисом (путь HKCU\… или HKLM\…).
+        var path = product.RegistryPath;
+        if (string.IsNullOrWhiteSpace(path) || string.IsNullOrWhiteSpace(product.KeyName))
+        {
+            return false;
+        }
+
+        var separator = path.IndexOf('\\');
+        if (separator <= 0)
+        {
+            return false;
+        }
+
+        var baseKey = path[..separator] switch
+        {
+            "HKCU" => Registry.CurrentUser,
+            "HKLM" => Registry.LocalMachine,
+            _ => null
+        };
+
+        var subKey = path[(separator + 1)..];
+        if (baseKey is null || !UninstallSubKeys.Any(u => subKey.StartsWith(u + @"\", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        try
+        {
+            baseKey.DeleteSubKeyTree(subKey, throwOnMissingSubKey: false);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     public string? ReadValue(string hive, string subKey, string valueName)
     {
         try
@@ -79,12 +118,14 @@ public sealed class RegistryService : IRegistryService
                     continue;
                 }
 
+                var hiveName = baseKey == Registry.CurrentUser ? "HKCU" : "HKLM";
                 results.Add(new InstalledProductInfo(
                     displayName,
                     productKey?.GetValue("DisplayVersion") as string,
                     productKey?.GetValue("InstallLocation") as string,
                     productKey?.GetValue("UninstallString") as string,
-                    productKeyName));
+                    productKeyName,
+                    $@"{hiveName}\{subKeyPath}\{productKeyName}"));
             }
         }
         catch (Exception)

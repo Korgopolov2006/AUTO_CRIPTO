@@ -30,21 +30,29 @@ public static class LeftoverCleanup
     /// <summary>У ветки и всех её подветок нет ни одного значения (в том числе «по умолчанию»).</summary>
     public static bool RegistryTreeHasValues(RegistryKey key)
     {
-        if (key.ValueCount > 0)
+        try
         {
-            return true;
-        }
-
-        foreach (var name in key.GetSubKeyNames())
-        {
-            using var child = key.OpenSubKey(name);
-            if (child is null || RegistryTreeHasValues(child))
+            if (key.ValueCount > 0)
             {
                 return true;
             }
-        }
 
-        return false;
+            foreach (var name in key.GetSubKeyNames())
+            {
+                using var child = key.OpenSubKey(name);
+                if (child is null || RegistryTreeHasValues(child))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch (Exception)
+        {
+            // Подраздел закрыт для чтения (у КриптоПро так защищён «Random»): проверить нельзя, значит, считаем, что в нём данные.
+            return true;
+        }
     }
 
     /// <summary>
@@ -83,13 +91,21 @@ public static class LeftoverCleanup
     /// </summary>
     public static bool IsOrphanProgId(RegistryKey progId)
     {
-        using var clsidKey = progId.OpenSubKey("CLSID");
-        if (clsidKey?.GetValue(null) is not string clsid || string.IsNullOrWhiteSpace(clsid))
+        try
         {
-            return true;
-        }
+            using var clsidKey = progId.OpenSubKey("CLSID");
+            if (clsidKey?.GetValue(null) is not string clsid || string.IsNullOrWhiteSpace(clsid))
+            {
+                return true;
+            }
 
-        return !ClassExists(clsid);
+            return !ClassExists(clsid);
+        }
+        catch (Exception)
+        {
+            // Проверить нельзя — считаем запись рабочей и не удаляем.
+            return false;
+        }
     }
 
     private static bool ClassExists(string clsid)
