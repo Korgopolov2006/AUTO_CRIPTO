@@ -1,6 +1,5 @@
 using System.IO;
 using System.Net.Http;
-using Microsoft.Win32;
 using SetupAssistant.Helpers;
 using SetupAssistant.Models;
 using SetupAssistant.Services.Interfaces;
@@ -153,13 +152,10 @@ public sealed class PreflightService : IPreflightService
     private static PreflightCheck CheckPendingReboot()
     {
         const string name = "Перезагрузка Windows";
-        var pending =
-            KeyExists(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending")
-            || KeyExists(@"SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired")
-            || ValueExists(@"SYSTEM\CurrentControlSet\Control\Session Manager", "PendingFileRenameOperations");
 
-        return pending
-            ? new PreflightCheck(name, StatusLevel.Warning, "Windows ждёт перезагрузки: рекомендуем перезагрузить компьютер до установки")
+        // Посторонние отложенные операции с файлами (у многих компьютеров они есть всегда) не считаются: см. WindowsInstallerState.
+        return WindowsInstallerState.GetPendingRebootReason() is { } reason
+            ? new PreflightCheck(name, StatusLevel.Warning, $"Рекомендуем перезагрузить компьютер до установки: {reason}")
             : new PreflightCheck(name, StatusLevel.Ok, "Ожидающей перезагрузки нет");
     }
 
@@ -169,17 +165,5 @@ public sealed class PreflightService : IPreflightService
         return WindowsInstallerState.IsBusy()
             ? new PreflightCheck(name, StatusLevel.Warning, "Сейчас выполняется другая установка (возможно, незавершённая после отмены). Помощник дождётся её окончания перед установкой каждого компонента")
             : new PreflightCheck(name, StatusLevel.Ok, "Другие установки не выполняются");
-    }
-
-    private static bool KeyExists(string subKey)
-    {
-        using var key = Registry.LocalMachine.OpenSubKey(subKey);
-        return key is not null;
-    }
-
-    private static bool ValueExists(string subKey, string valueName)
-    {
-        using var key = Registry.LocalMachine.OpenSubKey(subKey);
-        return key?.GetValue(valueName) is not null;
     }
 }
