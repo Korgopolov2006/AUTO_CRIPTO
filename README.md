@@ -99,13 +99,15 @@ MSI запускается с `MSIRESTARTMANAGERCONTROL=Disable`: приложе
 пишется в `Logs` рядом с exe. Подписывать нужно готовый `SetupAssistant-Full.exe` (данные находятся и в
 подписанном файле).
 
-Обновить единый exe: на компьютере с интернетом запустить `ExtensionUpdater.exe src\SetupAssistant`
-(обновит `Config.json` и файлы в `Appendices`), затем `tools\Build-SingleExe.ps1`.
+Результат сборки — один файл `SetupAssistant-Full.exe`: в нём и мастер настройки, и обновление дистрибутивов.
+Обновить единый exe: на компьютере с интернетом запустить `SetupAssistant-Full.exe --update-distributions src\SetupAssistant`
+(от имени администратора; обновит `Config.json` и файлы в `Appendices`), затем `tools\Build-SingleExe.ps1`.
 
 ## Обновление расширений и дистрибутивов
 
-`ExtensionUpdater.exe` запускается на компьютере с интернетом (во внутренней сети магазин Chrome недоступен):
-положите его рядом с `SetupAssistant.exe` и запустите двойным щелчком либо укажите папку приложения аргументом.
+Режим `--update-distributions <папка>` основного exe (бывшая отдельная утилита ExtensionUpdater) запускается на компьютере
+с интернетом, потому что во внутренней сети магазин Chrome недоступен. Папка — та, где лежит `Config\Config.json`
+(например, `src\SetupAssistant`); команда запускается из консоли, результат печатается в неё.
 
 - **Расширения:** версии сверяются с сервером обновлений Chrome, новые `.crx` скачиваются с проверкой SHA-256.
 - **Дистрибутивы** (раздел `Installers`): по `UpdateUrl` / `DownloadUrl` проверяются КриптоПро Browser plug-in,
@@ -113,12 +115,13 @@ MSI запускается с `MSIRESTARTMANAGERCONTROL=Disable`: приложе
   у него действительная подпись Authenticode и издатель содержит `ExpectedSigner`. КриптоПро CSP зафиксирован
   и не обновляется. Та же проверка подписи выполняется приложением при скачивании во время установки.
 - `--check` — только проверить; `--prune` — удалить старые версии (файл из `Config.json` и `.pem` не
-  удаляются; при запуске двойным щелчком утилита спросит подтверждение для `.crx`); `--prune-only` — только
+  удаляются); `--prune-only` — только
   удалить старые `.crx` без обращения к сети. Перед правкой создаётся
   `Config.json.bak`. Приложение при запуске (если есть интернет) показывает уведомление о новых версиях
   расширений, то же по кнопке в «Настройках».
-- Сборка: `dotnet publish src/ExtensionUpdater/ExtensionUpdater.csproj -c Release` (результат —
-  `src/ExtensionUpdater/bin/Release/net8.0/win-x64/publish/ExtensionUpdater.exe`, около 34 МБ).
+- Код обновления лежит в `src/SetupAssistant/Updater`. Проект `src/ExtensionUpdater` — тонкая оболочка над тем же кодом,
+  нужная только сборке единого exe (очистка старых `.crx` без запуска приложения с правами администратора); в результат
+  сборки он не входит.
 
 **КриптоПро ЭЦП Browser plug-in** (`Appendices\КриптоПро ЭЦП Browser plug-in\cadesplugin.exe`, 2.0.15820)
 скачивается без регистрации: достаточно анонимной сессии (страница плагина → `get_2_0`). Установщик
@@ -186,6 +189,8 @@ SetupAssistant.exe --check  [--report отчёт.pdf]                      пр�
 SetupAssistant.exe --silent [--reinstall] [--with-token] [--report отчёт.pdf]
                                                                       установить и настроить без вопросов
 SetupAssistant.exe --uninstall                                        удалить компоненты (Chromium GOST остаётся)
+SetupAssistant.exe --update-distributions <папка> [--check] [--prune] [--prune-only]
+                                                                      обновить расширения и дистрибутивы (нужен интернет)
 SetupAssistant.exe --help
 ```
 

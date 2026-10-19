@@ -4,13 +4,14 @@
     Собирает единый SetupAssistant-Full.exe: приложение + конфиг и дистрибутивы внутри одного файла.
 
 .DESCRIPTION
-    1. Публикует SetupAssistant и ExtensionUpdater (Release, автономные, без установки .NET).
-    2. Удаляет из публикации старые версии .crx (ExtensionUpdater --prune-only, без сети).
+    1. Публикует SetupAssistant и вспомогательный ExtensionUpdater (Release, автономные, без установки .NET).
+    2. Удаляет из публикации старые версии .crx (ExtensionUpdater --prune-only, без сети). Этот инструмент в результат не входит.
     3. Упаковывает Config, Appendices и LatoFont в zip и дописывает его в конец SetupAssistant.exe
        вместе с подвалом «SAPAYLD1» + длина архива. Приложение читает эти данные само и распаковывает
        нужный файл в %ProgramData%\SetupAssistant\Payload только в момент, когда он понадобился.
     Файл Config\Config.json или дистрибутив рядом с exe имеют приоритет над встроенными.
     Если exe нужно подписать, подписывайте готовый SetupAssistant-Full.exe: приложение находит данные и в подписанном файле.
+    Результат — единственный файл SetupAssistant-Full.exe: и мастер настройки, и обновление дистрибутивов (--update-distributions).
 
 .PARAMETER OutputDir
     Куда положить результат (по умолчанию папка dist рядом со скриптом, в git она не попадает).
@@ -69,7 +70,9 @@ try {
     }
     finally { $stream.Dispose() }
 
-    Copy-Item "$updater\ExtensionUpdater.exe" (Split-Path $out) -Force
+    # Результат — один файл: обновление дистрибутивов встроено в него (SetupAssistant-Full.exe --update-distributions <папка>),
+    # а ExtensionUpdater.exe нужен только этому скрипту для очистки и в выходную папку не попадает.
+    Get-ChildItem (Split-Path $out) -Filter 'ExtensionUpdater.exe' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
 
     $size = (Get-Item $out).Length / 1MB
     Write-Host ('Готово: {0}  ({1:N0} МБ, внутри {2:N0} МБ данных)' -f $out, $size, ($zipLength / 1MB)) -ForegroundColor Green
