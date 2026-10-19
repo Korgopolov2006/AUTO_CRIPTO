@@ -137,7 +137,26 @@
       "HKCU\\SOFTWARE\\Google\\Chrome\\NativeMessagingHosts\\kd.nc",
       "HKCU\\SOFTWARE\\Chromium\\NativeMessagingHosts\\kd.nc",
       "HKCU\\SOFTWARE\\Microsoft\\Edge\\NativeMessagingHosts\\kd.nc"
-    ]
+    ],
+    // Добивка пустых остатков. Удаляется только то, в чём нет данных: папка без единого файла, ветка реестра без единого значения
+    // (в ней нет ни контейнеров, ни лицензии), ProgID без рабочего CLSID. Непустое не трогается.
+    "EmptyLeftoverFolders": [
+      "%ProgramFiles%\\Crypto Pro",
+      "%ProgramFiles(x86)%\\Crypto Pro",
+      "%CommonProgramFiles%\\Crypto Pro",
+      "%CommonProgramFiles(x86)%\\Crypto Pro",
+      "%ProgramData%\\Crypto Pro",
+      "%LOCALAPPDATA%\\Crypto Pro",
+      "%APPDATA%\\Crypto Pro",
+      "%ProgramFiles%\\Aktiv Co",
+      "%ProgramFiles(x86)%\\Aktiv Co"
+    ],
+    "EmptyLeftoverRegistryKeys": [
+      "HKLM\\SOFTWARE\\Crypto Pro",
+      "HKLM\\SOFTWARE\\WOW6432Node\\Crypto Pro",
+      "HKCU\\SOFTWARE\\Crypto Pro"
+    ],
+    "OrphanProgIdPrefixes": [ "CAdESCOM." ]
   },
 
   // Сертификаты УЦ (корневые и промежуточные) для построения цепочки доверия. Импорт выполняется

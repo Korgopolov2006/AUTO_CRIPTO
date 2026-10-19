@@ -229,6 +229,18 @@ public sealed class UninstallConfig
 
     /// <summary>Остаточные ветки реестра в формате HKCU\... или HKLM\... (ключи КриптоПро с контейнерами сюда не добавляются).</summary>
     public List<string> LeftoverRegistryKeys { get; set; } = new();
+
+    /// <summary>Папки, которые удаляются, только если в них не осталось ни одного файла (пустые оболочки после деинсталлятора).</summary>
+    public List<string> EmptyLeftoverFolders { get; set; } = new();
+
+    /// <summary>
+    /// Ветки реестра HKCU\… / HKLM\…, которые удаляются, только если в них нет ни одного значения. Подходит и для «Crypto Pro»:
+    /// пустая ветка не содержит ни контейнеров, ни лицензии.
+    /// </summary>
+    public List<string> EmptyLeftoverRegistryKeys { get; set; } = new();
+
+    /// <summary>Префиксы ProgID (например, «CAdESCOM.»): записи с таким именем без рабочего CLSID удаляются из HKLM\SOFTWARE\Classes.</summary>
+    public List<string> OrphanProgIdPrefixes { get; set; } = new();
 }
 
 public sealed class LoggingConfig
