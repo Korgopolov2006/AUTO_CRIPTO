@@ -172,6 +172,7 @@
           "HKLM\\SOFTWARE\\WOW6432Node\\SecurityCode"
         ]
       },
+      { "Name": "eXtended Container (библиотека криптоконтейнеров)", "DisplayNamePatterns": [ "eXtended Container" ], "Kind": "Msi", "Group": "Kontinent", "RegistryPaths": [ "HKLM\\SOFTWARE\\Security Code\\XC" ] },
       { "Name": "Код Безопасности CSP", "DisplayNamePatterns": [ "Код Безопасности CSP" ], "Kind": "Msi", "Group": "Kontinent", "DataPaths": [ "%ProgramFiles%\\Security Code\\CSP" ] },
       { "Name": "Контур.Плагин (Диаг.Плагин)", "DisplayNamePatterns": [ "Диаг.Плагин", "Контур.Плагин" ], "Kind": "Exe", "Args": "/S", "ProcessPathContains": "\\SkbKontur\\" },
       { "Name": "Плагин Госуслуг", "DisplayNamePatterns": [ "Плагин пользователя систем электронного правительства" ], "Kind": "Msi" },
