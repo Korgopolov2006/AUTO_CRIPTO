@@ -173,6 +173,36 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
     }
 
+    /// <summary>Шаги, относящиеся только к Континент-АП: без них набор «КриптоПро» обходится.</summary>
+    private static readonly SetupStepKind[] KontinentStepKinds =
+    {
+        SetupStepKind.InstallKontinentAp, SetupStepKind.VerifyKontinentAp, SetupStepKind.ImportKontinentConfig
+    };
+
+    /// <summary>Кнопка «КриптоПро»: настройка без Континент-АП (его шаги не выбираются).</summary>
+    [RelayCommand]
+    private Task SetupCryptoProAsync()
+    {
+        SelectForScope(withKontinent: false);
+        return StartSetupAsync();
+    }
+
+    /// <summary>Кнопка «КриптоПро с Континентом»: настройка плюс Континент-АП (если в конфигурации задан его дистрибутив).</summary>
+    [RelayCommand]
+    private Task SetupCryptoProWithKontinentAsync()
+    {
+        SelectForScope(withKontinent: true);
+        return StartSetupAsync();
+    }
+
+    private void SelectForScope(bool withKontinent)
+    {
+        var kinds = Steps.Where(s => s.IsSelectable && (withKontinent || !KontinentStepKinds.Contains(s.Kind)))
+            .Select(s => s.Kind)
+            .ToList();
+        SetupPlan.SelectOnly(Steps, kinds);
+    }
+
     [RelayCommand]
     private void SelectAll()
     {

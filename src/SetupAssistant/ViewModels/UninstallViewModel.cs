@@ -77,8 +77,20 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
         UpdateProgress();
     }
 
+    /// <summary>Кнопка «Удалить» — как раньше: все компоненты из списка, включая Континент-АП, если он найден.</summary>
     [RelayCommand]
-    private async Task StartUninstallAsync()
+    private Task StartUninstallAsync() => RunUninstallAsync(withKontinent: null);
+
+    /// <summary>Кнопка «КриптоПро»: удаляет КриптоПро и остальные компоненты, Континент-АП и его настройки не трогает.</summary>
+    [RelayCommand]
+    private Task UninstallCryptoProAsync() => RunUninstallAsync(withKontinent: false);
+
+    /// <summary>Кнопка «КриптоПро с Континентом»: удаляет то же самое и Континент-АП вместе с его настройками.</summary>
+    [RelayCommand]
+    private Task UninstallCryptoProWithKontinentAsync() => RunUninstallAsync(withKontinent: true);
+
+    /// <param name="withKontinent">true — удалить и Континент-АП, false — не трогать его, null — как в списке.</param>
+    private async Task RunUninstallAsync(bool? withKontinent)
     {
         if (IsRunning)
         {
@@ -89,10 +101,14 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
             ? "Будут также удалены сертификаты КриптоПро из хранилища «Личное» (их можно вернуть с токена повторной настройкой)."
             : "Сертификаты останутся в хранилище.";
 
+        var kontinentNote = withKontinent == false
+            ? "Континент-АП и его настройки останутся.\n"
+            : withKontinent == true ? "Будут также удалены Континент-АП и его папки настроек.\n" : string.Empty;
+
         var message =
             "Будут удалены КриптоПро CSP и плагин КриптоПро, драйверы Рутокен, Контур.Плагин, Плагин Госуслуг, " +
             "политика установки расширений и данные приложения. Запущенные плагины будут закрыты.\n\n" +
-            "Chromium GOST остаётся установленным. Ключи, ключевые контейнеры и содержимое токена НЕ удаляются.\n" + certificatesNote + "\n\nПродолжить?";
+            "Chromium GOST остаётся установленным. Ключи, ключевые контейнеры и содержимое токена НЕ удаляются.\n" + certificatesNote + "\n" + kontinentNote + "\nПродолжить?";
 
         if (!_dialogService.Confirm(message, "Удаление компонентов"))
         {
@@ -101,6 +117,15 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
 
         // Экран живёт всё время работы приложения: перед новым запуском строим план заново.
         Rescan();
+
+        // Кнопка «КриптоПро» не должна трогать Континент-АП: его шаг убираем из плана, а не только снимаем галочку.
+        if (withKontinent == false)
+        {
+            foreach (var step in Steps.Where(s => s.Key == "Континент-АП").ToList())
+            {
+                Steps.Remove(step);
+            }
+        }
 
         IsRunning = true;
         IsCompleted = false;
