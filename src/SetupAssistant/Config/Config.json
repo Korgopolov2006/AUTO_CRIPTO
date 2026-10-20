@@ -92,7 +92,13 @@
     "ProfileScope": "User",
     "ServerCertificatePath": "",
     "RootCertificatePath": "",
-    "CommandTimeoutSeconds": 120
+    "CommandTimeoutSeconds": 120,
+    "RegistrationProgramPath": "%ProgramFiles%\\Security Code\\Continent VPN Client\\Registration.exe",
+    "RegistrationFields": [
+      { "Field": "ФИО", "Format": "Фамилия Имя Отчество полностью, с заглавной буквы", "Example": "Фамилия Имя Отчество" },
+      { "Field": "Логин", "Format": "Латиница или как в учётной записи, без пробелов", "Example": "login" },
+      { "Field": "Почта", "Format": "Адрес с символом @ и доменом", "Example": "name@example.ru" }
+    ]
   },
 
   "MinVersions": {

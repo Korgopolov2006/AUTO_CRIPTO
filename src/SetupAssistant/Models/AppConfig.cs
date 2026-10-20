@@ -258,7 +258,16 @@ public sealed class KontinentConfig
 
     /// <summary>Сколько секунд ждать каждую команду клиента.</summary>
     public int CommandTimeoutSeconds { get; set; } = 120;
+
+    /// <summary>Программа регистрации Континент-АП (открывается только по нажатию кнопки пользователя).</summary>
+    public string RegistrationProgramPath { get; set; } = @"%ProgramFiles%\Security Code\Continent VPN Client\Registration.exe";
+
+    /// <summary>Подсказка для ручного заполнения формы регистрации: что в каком поле и в каком формате. Персональных данных здесь нет.</summary>
+    public List<RegistrationFieldHint> RegistrationFields { get; set; } = new();
 }
+
+/// <summary>Одна строка подсказки: название поля, формат и пример (не данные пользователя).</summary>
+public sealed record RegistrationFieldHint(string Field, string Format, string Example);
 
 public sealed class UninstallConfig
 {
