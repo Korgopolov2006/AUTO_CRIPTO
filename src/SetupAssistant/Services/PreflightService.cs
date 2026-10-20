@@ -89,7 +89,8 @@ public sealed class PreflightService : IPreflightService
             ("Драйвер Рутокен", installers.RutokenDriver),
             ("Chromium GOST", installers.ChromiumGost),
             ("Контур.Плагин", installers.KonturPlugin),
-            ("Плагин Госуслуг", installers.GosuslugiPlugin)
+            ("Плагин Госуслуг", installers.GosuslugiPlugin),
+            ("Континент-АП", installers.KontinentAp)
         };
 
         // Без локального файла и без адреса для скачивания установить компонент нельзя; с адресом нужен интернет (см. проверку сети).

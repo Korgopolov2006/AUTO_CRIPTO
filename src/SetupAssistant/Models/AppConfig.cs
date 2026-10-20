@@ -18,6 +18,7 @@ public sealed class AppConfig
     public ExtensionsConfig Extensions { get; set; } = new();
     public NativeMessagingConfig NativeMessaging { get; set; } = new();
     public UninstallConfig Uninstall { get; set; } = new();
+    public KontinentConfig Kontinent { get; set; } = new();
     public List<CaCertificateDefinition> CaCertificates { get; set; } = new();
     public LoggingConfig Logging { get; set; } = new();
     public CheckSettingsConfig CheckSettings { get; set; } = new();
@@ -69,6 +70,9 @@ public sealed class InstallersConfig
     public InstallerDefinition ChromiumGost { get; set; } = new();
     public InstallerDefinition KonturPlugin { get; set; } = new();
     public InstallerDefinition GosuslugiPlugin { get; set; } = new();
+
+    /// <summary>Континент-АП (VPN-клиент «Код Безопасности»): дистрибутив кладёт заказчик; пока Path пуст, шаги установки в план не попадают.</summary>
+    public InstallerDefinition KontinentAp { get; set; } = new();
     public InstallerDefinition RutokenDriver { get; set; } = new();
     public InstallerDefinition JaCartaDriver { get; set; } = new();
 }
@@ -217,6 +221,28 @@ public sealed class UninstallProductDefinition
 
     /// <summary>Если задано, перед удалением завершаются процессы, чей путь содержит эту подстроку (браузер, службы плагина).</summary>
     public string ProcessPathContains { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Папки с настройками программы (допускаются переменные среды), которые удаляются вместе с ней после успешного удаления.
+    /// Ключи, ключевые контейнеры и содержимое токена сюда не добавляются; несуществующие пути пропускаются.
+    /// </summary>
+    public List<string> DataPaths { get; set; } = new();
+}
+
+/// <summary>Настройка Континент-АП: файл конфигурации и команда его импорта (задаются по документации продукта).</summary>
+public sealed class KontinentConfig
+{
+    /// <summary>Файл конфигурации (профиль подключения), который выдаёт администратор сервера доступа; пусто — импорт не выполняется.</summary>
+    public string ConfigPath { get; set; } = string.Empty;
+
+    /// <summary>Программа, импортирующая конфигурацию (полный путь, допускаются переменные среды, например %ProgramFiles%).</summary>
+    public string ImportExecutable { get; set; } = string.Empty;
+
+    /// <summary>Аргументы команды импорта; <c>{config}</c> заменяется на полный путь к файлу конфигурации в кавычках.</summary>
+    public string ImportArguments { get; set; } = "{config}";
+
+    /// <summary>Сколько секунд ждать завершения импорта.</summary>
+    public int ImportTimeoutSeconds { get; set; } = 120;
 }
 
 public sealed class UninstallConfig

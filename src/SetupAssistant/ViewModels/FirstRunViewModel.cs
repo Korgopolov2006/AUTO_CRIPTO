@@ -86,6 +86,8 @@ public partial class FirstRunViewModel : ViewModelBase, INavigationAware
             SetupStepKind.InstallChromiumGost));
         Needs.Add(new NeedOption("Порталы Контур", "Контур.Плагин", SetupStepKind.InstallKonturPlugin));
         Needs.Add(new NeedOption("Госуслуги", "Плагин для входа на Госуслуги с электронной подписью", SetupStepKind.InstallGosuslugiPlugin));
+        Needs.Add(new NeedOption("Защищённая сеть (VPN)", "Континент-АП и импорт конфигурации подключения (если задан дистрибутив)",
+            SetupStepKind.InstallKontinentAp, SetupStepKind.ImportKontinentConfig));
         Needs.Add(new NeedOption("Токен Рутокен", "Драйвер токена и установка сертификата с него", SetupStepKind.InstallRutokenDriver, SetupStepKind.InstallTokenCertificates));
 
         _tokenTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };

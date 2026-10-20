@@ -26,6 +26,17 @@ public static class SetupPlan
         Pair(SetupStepKind.InstallChromiumGost, "Установка Chromium GOST", SetupStepKind.VerifyChromiumGost, "Проверка Chromium GOST");
         Pair(SetupStepKind.InstallKonturPlugin, "Установка Контур.Плагина", SetupStepKind.VerifyKonturPlugin, "Проверка Контур.Плагина");
         Pair(SetupStepKind.InstallGosuslugiPlugin, "Установка Плагина Госуслуг", SetupStepKind.VerifyGosuslugiPlugin, "Проверка Плагина Госуслуг");
+
+        // Континент-АП нужен не на каждом рабочем месте: шаги появляются, только когда задан его дистрибутив (а импорт — когда задан файл конфигурации).
+        if (configService.Current.Installers.KontinentAp.IsConfigured)
+        {
+            Pair(SetupStepKind.InstallKontinentAp, "Установка Континент-АП", SetupStepKind.VerifyKontinentAp, "Проверка Континент-АП");
+            if (!string.IsNullOrWhiteSpace(configService.Current.Kontinent.ConfigPath))
+            {
+                Single(SetupStepKind.ImportKontinentConfig, "Импорт конфигурации Континент-АП");
+            }
+        }
+
         Single(SetupStepKind.InstallBrowserExtensions, "Установка расширений браузера");
 
         if (configService.Current.CaCertificates.Count > 0)

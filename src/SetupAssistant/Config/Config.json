@@ -68,7 +68,27 @@
       "Path": "",
       "Kind": "Msi",
       "SilentArgs": ""
+    },
+    // Континент-АП («Код Безопасности»): дистрибутив кладёт заказчик в Appendices\Континент-АП. Пока Path пуст, шаги установки,
+    // проверки и импорта конфигурации в мастер не попадают. Kind (Msi/Exe) и SilentArgs задайте по документации установщика
+    // вашей версии (тихая установка без окон и без перезагрузки). Пример: "Path": "Appendices\\Континент-АП\\ContinentAP.msi",
+    // "Kind": "Msi", "SilentArgs": "". Автоматически не обновляется (UpdateUrl не задан).
+    "KontinentAp": {
+      "Path": "",
+      "Kind": "Msi",
+      "SilentArgs": ""
     }
+  },
+
+  // Настройка Континент-АП: импорт файла конфигурации (профиля подключения), который выдаёт администратор сервера доступа.
+  // ConfigPath — файл (например, "Appendices\\Континент-АП\\config.cfg"); пусто — импорт не выполняется. ImportExecutable и
+  // ImportArguments — команда импорта по документации вашей версии клиента ({config} заменяется на полный путь к файлу в кавычках).
+  // Пока ImportExecutable пуст, шаг сообщит, что команда не задана; конфигурацию тогда можно импортировать вручную.
+  "Kontinent": {
+    "ConfigPath": "",
+    "ImportExecutable": "",
+    "ImportArguments": "{config}",
+    "ImportTimeoutSeconds": 120
   },
 
   "MinVersions": {
@@ -120,6 +140,22 @@
   // Ключи, ключевые контейнеры и содержимое токена не удаляются; ветки HKCU\SOFTWARE\Crypto Pro (контейнеры) в очистку не входят.
   "Uninstall": {
     "Products": [
+      // Континент-АП удаляется первым (сетевой драйвер и служба). Kind/Args задайте по типу установщика вашей версии: у MSI код продукта
+      // берётся из реестра сам, у установщика-оболочки команда берётся из UninstallString плюс Args. DataPaths — папки с настройками
+      // программы, которые удаляются вместе с ней; ниже типичные расположения, уточните по установленной версии. Ключи и токен не затрагиваются.
+      {
+        "Name": "Континент-АП",
+        "DisplayNamePatterns": [ "Континент-АП", "Континент АП", "Continent-AP", "Continent AP" ],
+        "Kind": "Msi",
+        "Args": "",
+        "ProcessPathContains": "\\Security Code\\",
+        "DataPaths": [
+          "%ProgramData%\\Security Code\\Continent-AP",
+          "%ProgramData%\\Security Code\\Continent AP",
+          "%APPDATA%\\Security Code\\Continent-AP",
+          "%LOCALAPPDATA%\\Security Code\\Continent-AP"
+        ]
+      },
       { "Name": "Контур.Плагин (Диаг.Плагин)", "DisplayNamePatterns": [ "Диаг.Плагин", "Контур.Плагин" ], "Kind": "Exe", "Args": "/S", "ProcessPathContains": "\\SkbKontur\\" },
       { "Name": "Плагин Госуслуг", "DisplayNamePatterns": [ "Плагин пользователя систем электронного правительства" ], "Kind": "Msi" },
       { "Name": "КриптоПро ЭЦП Browser plug-in", "DisplayNamePatterns": [ "КриптоПро ЭЦП Browser plug-in", "CryptoPro Browser plug-in" ], "Kind": "Msi" },
@@ -149,7 +185,12 @@
       "%LOCALAPPDATA%\\Crypto Pro",
       "%APPDATA%\\Crypto Pro",
       "%ProgramFiles%\\Aktiv Co",
-      "%ProgramFiles(x86)%\\Aktiv Co"
+      "%ProgramFiles(x86)%\\Aktiv Co",
+      "%ProgramFiles%\\Security Code",
+      "%ProgramFiles(x86)%\\Security Code",
+      "%ProgramData%\\Security Code",
+      "%APPDATA%\\Security Code",
+      "%LOCALAPPDATA%\\Security Code"
     ],
     "EmptyLeftoverRegistryKeys": [
       "HKLM\\SOFTWARE\\Crypto Pro",
