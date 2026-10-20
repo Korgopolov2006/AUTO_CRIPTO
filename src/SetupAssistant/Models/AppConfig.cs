@@ -227,6 +227,18 @@ public sealed class UninstallProductDefinition
     /// Ключи, ключевые контейнеры и содержимое токена сюда не добавляются; несуществующие пути пропускаются.
     /// </summary>
     public List<string> DataPaths { get; set; } = new();
+
+    /// <summary>
+    /// Группа продукта: «Kontinent» — Континент-АП и связанные с ним компоненты (КБ CSP). Такие продукты удаляются только в
+    /// режимах, где затрагивается Континент; пустое значение — обычный компонент.
+    /// </summary>
+    public string Group { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Ветки реестра HKLM\… / HKCU\…, которые удаляются вместе с продуктом целиком, даже если в них есть данные.
+    /// Только собственные разделы продукта; общие разделы вендора (с пробелом «Security Code») сюда не добавляются.
+    /// </summary>
+    public List<string> RegistryPaths { get; set; } = new();
 }
 
 /// <summary>

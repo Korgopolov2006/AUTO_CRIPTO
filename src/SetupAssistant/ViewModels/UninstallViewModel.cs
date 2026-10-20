@@ -121,7 +121,7 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
         // Кнопка «КриптоПро» не должна трогать Континент-АП: его шаг убираем из плана, а не только снимаем галочку.
         if (withKontinent == false)
         {
-            foreach (var step in Steps.Where(s => s.Key == "Континент-АП").ToList())
+            foreach (var step in Steps.Where(s => _uninstallService.IsKontinentStep(s)).ToList())
             {
                 Steps.Remove(step);
             }

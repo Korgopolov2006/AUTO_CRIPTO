@@ -13,6 +13,9 @@ public interface IUninstallService
     /// <summary>Сканирует компьютер (ничего не меняя) и возвращает шаги отката с описанием найденного.</summary>
     IReadOnlyList<SetupStepModel> BuildPlan(UninstallOptions options);
 
+    /// <summary>Шаг относится к группе Континент-АП (Континент и связанные с ним компоненты, например КБ CSP).</summary>
+    bool IsKontinentStep(SetupStepModel step);
+
     /// <summary>Выполняет шаги по порядку. Ошибка одного шага не останавливает остальные.</summary>
     Task RunAsync(IReadOnlyList<SetupStepModel> steps, IProgress<SetupStepModel>? progress, CancellationToken cancellationToken = default);
 }

@@ -158,14 +158,21 @@
         "DisplayNamePatterns": [ "Континент-АП", "Континент АП", "Continent-AP", "Continent AP" ],
         "Kind": "Msi",
         "Args": "",
+        "Group": "Kontinent",
         "ProcessPathContains": "\\Security Code\\",
         "DataPaths": [
           "%ProgramData%\\Security Code\\Continent-AP",
           "%ProgramData%\\Security Code\\Continent AP",
           "%APPDATA%\\Security Code\\Continent-AP",
-          "%LOCALAPPDATA%\\Security Code\\Continent-AP"
+          "%LOCALAPPDATA%\\Security Code\\Continent-AP",
+          "%ProgramFiles%\\Security Code\\Continent VPN Client"
+        ],
+        "RegistryPaths": [
+          "HKLM\\SOFTWARE\\SecurityCode",
+          "HKLM\\SOFTWARE\\WOW6432Node\\SecurityCode"
         ]
       },
+      { "Name": "Код Безопасности CSP", "DisplayNamePatterns": [ "Код Безопасности CSP" ], "Kind": "Msi", "Group": "Kontinent", "DataPaths": [ "%ProgramFiles%\\Security Code\\CSP" ] },
       { "Name": "Контур.Плагин (Диаг.Плагин)", "DisplayNamePatterns": [ "Диаг.Плагин", "Контур.Плагин" ], "Kind": "Exe", "Args": "/S", "ProcessPathContains": "\\SkbKontur\\" },
       { "Name": "Плагин Госуслуг", "DisplayNamePatterns": [ "Плагин пользователя систем электронного правительства" ], "Kind": "Msi" },
       { "Name": "КриптоПро ЭЦП Browser plug-in", "DisplayNamePatterns": [ "КриптоПро ЭЦП Browser plug-in", "CryptoPro Browser plug-in" ], "Kind": "Msi" },
@@ -205,7 +212,9 @@
     "EmptyLeftoverRegistryKeys": [
       "HKLM\\SOFTWARE\\Crypto Pro",
       "HKLM\\SOFTWARE\\WOW6432Node\\Crypto Pro",
-      "HKCU\\SOFTWARE\\Crypto Pro"
+      "HKCU\\SOFTWARE\\Crypto Pro",
+      "HKLM\\SOFTWARE\\SecurityCode",
+      "HKLM\\SOFTWARE\\WOW6432Node\\SecurityCode"
     ],
     "OrphanProgIdPrefixes": [ "CAdESCOM." ]
   },

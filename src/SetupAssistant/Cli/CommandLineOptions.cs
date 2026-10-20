@@ -12,7 +12,8 @@ public sealed record CommandLineOptions(
     string? ReportPath,
     string? SupportBundlePath,
     string? Error,
-    IReadOnlyList<string>? UpdaterArgs = null)
+    IReadOnlyList<string>? UpdaterArgs = null,
+    bool KontinentOnly = false)
 {
     public const int ExitInvalidArguments = 4;
 
@@ -30,7 +31,7 @@ public sealed record CommandLineOptions(
             return new CommandLineOptions(false, false, false, false, false, false, false, null, null, null, args.Skip(1).ToList());
         }
 
-        bool check = false, silent = false, uninstall = false, resume = false, reinstall = false, withToken = false, help = false;
+        bool check = false, silent = false, uninstall = false, resume = false, reinstall = false, withToken = false, help = false, kontinentOnly = false;
         string? report = null, supportBundle = null, error = null;
 
         for (var i = 0; i < args.Count; i++)
@@ -40,6 +41,7 @@ public sealed record CommandLineOptions(
                 case "--check": check = true; break;
                 case "--silent": silent = true; break;
                 case "--uninstall": uninstall = true; break;
+                case "--kontinent-only": kontinentOnly = true; break;
                 case "--resume": resume = true; break;
                 case "--reinstall": reinstall = true; break;
                 case "--with-token": withToken = true; break;
@@ -77,7 +79,7 @@ public sealed record CommandLineOptions(
             error = "Режимы --check, --silent и --uninstall нельзя указывать одновременно.";
         }
 
-        return new CommandLineOptions(check, silent, uninstall, resume, reinstall, withToken, help, report, supportBundle, error);
+        return new CommandLineOptions(check, silent, uninstall, resume, reinstall, withToken, help, report, supportBundle, error, null, kontinentOnly);
     }
 
     public const string Usage =
@@ -90,6 +92,7 @@ public sealed record CommandLineOptions(
           --check                проверить рабочее место
           --silent               установить и настроить всё, что нужно, без вопросов
           --uninstall            удалить компоненты, установленные мастером (Chromium GOST не удаляется), без вопросов
+          --kontinent-only       (с --uninstall) удалить только Континент-АП и КБ CSP; КриптоПро и плагины не трогаются
           --update-distributions <папка> [--check] [--prune] [--prune-only]
                                  обновить расширения и дистрибутивы в папке приложения (нужен интернет); папка — с Config\Config.json
         Дополнительно:

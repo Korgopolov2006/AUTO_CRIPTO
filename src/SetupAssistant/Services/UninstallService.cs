@@ -94,6 +94,10 @@ public sealed partial class UninstallService : IUninstallService
         return steps;
     }
 
+    public bool IsKontinentStep(SetupStepModel step) =>
+        step.Kind == SetupStepKind.UninstallProduct
+        && _configService.Current.Uninstall.Products.Any(p => p.Name == step.Key && p.Group == "Kontinent");
+
     public async Task RunAsync(IReadOnlyList<SetupStepModel> steps, IProgress<SetupStepModel>? progress, CancellationToken cancellationToken = default)
     {
         foreach (var step in steps)
@@ -254,6 +258,25 @@ public sealed partial class UninstallService : IUninstallService
     private int RemoveProductData(UninstallProductDefinition definition)
     {
         var removed = 0;
+
+        // Собственные ветки продукта удаляются целиком, даже с данными: они принадлежат только этому продукту.
+        foreach (var entry in definition.RegistryPaths)
+        {
+            if (!LeftoverCleanup.TryParseBranch(entry, out var hive, out var subKey))
+            {
+                continue;
+            }
+
+            try
+            {
+                hive.DeleteSubKeyTree(subKey, throwOnMissingSubKey: false);
+                _logger.Info($"{Action}: {definition.Name}", $"Удалена ветка реестра продукта: {subKey}");
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning($"{Action}: {definition.Name}", "Не удалось удалить ветку реестра продукта", $"{subKey}: {ex.Message}");
+            }
+        }
         foreach (var pattern in definition.DataPaths)
         {
             var path = Environment.ExpandEnvironmentVariables(pattern);
@@ -267,6 +290,15 @@ public sealed partial class UninstallService : IUninstallService
                 Directory.Delete(path, recursive: true);
                 removed++;
                 _logger.Info($"{Action}: {definition.Name}", $"Удалена папка с настройками: {path}");
+
+                // Родительскую папку (например, «Security Code») убираем только если в ней ничего не осталось: чужие файлы
+                // или папки (Secret Net Studio и т. п.) не дают её удалить. Без рекурсии — пустую папку и так не тронет лишнего.
+                var parent = Path.GetDirectoryName(path);
+                if (parent is not null && IsSafeToDelete(parent) && Directory.Exists(parent) && !Directory.EnumerateFileSystemEntries(parent).Any())
+                {
+                    Directory.Delete(parent);
+                    _logger.Info($"{Action}: {definition.Name}", $"Удалена пустая родительская папка: {parent}");
+                }
             }
             catch (Exception ex)
             {
