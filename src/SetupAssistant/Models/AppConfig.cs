@@ -229,20 +229,35 @@ public sealed class UninstallProductDefinition
     public List<string> DataPaths { get; set; } = new();
 }
 
-/// <summary>Настройка Континент-АП: файл конфигурации и команда его импорта (задаются по документации продукта).</summary>
+/// <summary>
+/// Настройка Континент-АП: профиль подключения и сертификаты добавляются через консольную программу клиента
+/// (VpnClientConsole.exe, ключи --addProfile, --importServerCertificate, --importRootCertificate).
+/// </summary>
 public sealed class KontinentConfig
 {
-    /// <summary>Файл конфигурации (профиль подключения), который выдаёт администратор сервера доступа; пусто — импорт не выполняется.</summary>
-    public string ConfigPath { get; set; } = string.Empty;
+    /// <summary>
+    /// Как добавлять сертификаты: Auto — через КриптоПро, если он установлен (сертификат берётся из его контейнеров),
+    /// иначе через Континент-АП; CryptoPro или Continent — принудительно.
+    /// </summary>
+    public string Mode { get; set; } = "Auto";
 
-    /// <summary>Программа, импортирующая конфигурацию (полный путь, допускаются переменные среды, например %ProgramFiles%).</summary>
-    public string ImportExecutable { get; set; } = string.Empty;
+    /// <summary>Консольная программа клиента (допускаются переменные среды).</summary>
+    public string ConsolePath { get; set; } = @"%ProgramFiles%\Security Code\Continent VPN Client\VpnClientConsole.exe";
 
-    /// <summary>Аргументы команды импорта; <c>{config}</c> заменяется на полный путь к файлу конфигурации в кавычках.</summary>
-    public string ImportArguments { get; set; } = "{config}";
+    /// <summary>JSON-файл профиля подключения (--addProfile); пусто — профиль не добавляется.</summary>
+    public string ProfilePath { get; set; } = string.Empty;
 
-    /// <summary>Сколько секунд ждать завершения импорта.</summary>
-    public int ImportTimeoutSeconds { get; set; } = 120;
+    /// <summary>User — профиль для текущего пользователя; Global — общий для всех пользователей (ключ -g).</summary>
+    public string ProfileScope { get; set; } = "User";
+
+    /// <summary>Файл сертификата сервера (--importServerCertificate). Только в режиме через Континент-АП.</summary>
+    public string ServerCertificatePath { get; set; } = string.Empty;
+
+    /// <summary>Файл корневого сертификата УЦ (--importRootCertificate). Только в режиме через Континент-АП.</summary>
+    public string RootCertificatePath { get; set; } = string.Empty;
+
+    /// <summary>Сколько секунд ждать каждую команду клиента.</summary>
+    public int CommandTimeoutSeconds { get; set; } = 120;
 }
 
 public sealed class UninstallConfig

@@ -74,21 +74,25 @@
     // вашей версии (тихая установка без окон и без перезагрузки). Пример: "Path": "Appendices\\Континент-АП\\ContinentAP.msi",
     // "Kind": "Msi", "SilentArgs": "". Автоматически не обновляется (UpdateUrl не задан).
     "KontinentAp": {
-      "Path": "",
-      "Kind": "Msi",
-      "SilentArgs": ""
+      "Path": "Appendices\\Континент-АП\\Континент-АП.exe",
+      "Kind": "Exe",
+      "SilentArgs": "/quiet /norestart"
     }
   },
 
-  // Настройка Континент-АП: импорт файла конфигурации (профиля подключения), который выдаёт администратор сервера доступа.
-  // ConfigPath — файл (например, "Appendices\\Континент-АП\\config.cfg"); пусто — импорт не выполняется. ImportExecutable и
-  // ImportArguments — команда импорта по документации вашей версии клиента ({config} заменяется на полный путь к файлу в кавычках).
-  // Пока ImportExecutable пуст, шаг сообщит, что команда не задана; конфигурацию тогда можно импортировать вручную.
+  // Настройка Континент-АП: профиль подключения и сертификаты добавляются командами консольной программы клиента.
+  // Mode: Auto — через КриптоПро, если он установлен (сертификат из его контейнеров), иначе через Континент-АП; CryptoPro / Continent — принудительно.
+  // ProfilePath — JSON-профиль (--addProfile), ProfileScope: User — для пользователя, Global — общий (-g).
+  // ServerCertificatePath / RootCertificatePath — файлы сертификатов (--importServerCertificate / --importRootCertificate), только в режиме Continent.
+  // Пустые пути — шаг не добавляется. ConsolePath — VpnClientConsole.exe по умолчанию.
   "Kontinent": {
-    "ConfigPath": "",
-    "ImportExecutable": "",
-    "ImportArguments": "{config}",
-    "ImportTimeoutSeconds": 120
+    "Mode": "Auto",
+    "ConsolePath": "%ProgramFiles%\\Security Code\\Continent VPN Client\\VpnClientConsole.exe",
+    "ProfilePath": "",
+    "ProfileScope": "User",
+    "ServerCertificatePath": "",
+    "RootCertificatePath": "",
+    "CommandTimeoutSeconds": 120
   },
 
   "MinVersions": {

@@ -391,71 +391,109 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
     }
 
     /// <summary>
-    /// Импортирует файл конфигурации в Континент-АП командой из раздела Kontinent в Config.json. Ключи импорта у разных версий
-    /// клиента разные, поэтому команда задаётся в конфигурации по документации продукта, а не зашита в приложение.
+    /// Добавляет в Континент-АП сертификаты и профиль командами его консольной программы. Если установлен КриптоПро
+    /// (режим CryptoPro), сертификаты уже добавлены через него, и Континент получает только профиль; иначе сертификаты
+    /// добавляются через Континент-АП (режим Continent). Ошибка одной команды останавливает шаг.
     /// </summary>
     private async Task ImportKontinentConfigAsync(SetupStepModel step, CancellationToken cancellationToken)
     {
         var settings = _configService.Current.Kontinent;
-
-        var configFile = await Task.Run(() => _configService.ResolvePath(settings.ConfigPath), cancellationToken);
-        if (!File.Exists(configFile))
+        var console = Environment.ExpandEnvironmentVariables(settings.ConsolePath);
+        if (!File.Exists(console))
         {
             step.Status = StatusLevel.Warning;
-            step.Details = $"Файл конфигурации не найден: {configFile}";
-            _logger.Warning($"Настройка: {step.Title}", "Файл конфигурации Континент-АП не найден", configFile);
+            step.Details = $"Не найдена консольная программа Континент-АП: {console}. Клиент установлен?";
+            _logger.Warning($"Настройка: {step.Title}", "Консольная программа Континент-АП не найдена", console);
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(settings.ImportExecutable))
+        var viaCryptoPro = ResolveKontinentMode(settings.Mode) == KontinentMode.CryptoPro;
+        var commands = new List<(string Label, string Arguments, string File)>();
+
+        if (!viaCryptoPro)
         {
-            step.Status = StatusLevel.Warning;
-            step.Details = "Команда импорта не задана в Config.json (раздел Kontinent: ImportExecutable и ImportArguments). " +
-                           "Ключи импорта смотрите в документации установленной версии Континент-АП; файл можно импортировать и вручную.";
-            _logger.Warning($"Настройка: {step.Title}", "Шаг пропущен: команда импорта конфигурации не задана");
+            AddCertificateCommand(commands, "корневой сертификат УЦ", settings.RootCertificatePath, "--importRootCertificate");
+            AddCertificateCommand(commands, "сертификат сервера", settings.ServerCertificatePath, "--importServerCertificate");
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.ProfilePath))
+        {
+            var profile = _configService.ResolvePath(settings.ProfilePath);
+            var scope = settings.ProfileScope.Equals("Global", StringComparison.OrdinalIgnoreCase) ? " -g" : string.Empty;
+            commands.Add(("профиль", $"--addProfile --path {Quote(profile)}{scope}", profile));
+        }
+
+        if (commands.Count == 0)
+        {
+            step.Status = StatusLevel.Ok;
+            step.Details = viaCryptoPro
+                ? "Сертификаты добавлены через КриптоПро; профиль в конфигурации не задан"
+                : "В конфигурации не заданы сертификаты и профиль — нечего добавлять";
             return;
         }
 
-        var executable = Environment.ExpandEnvironmentVariables(settings.ImportExecutable);
-        if (!File.Exists(executable))
+        var missing = commands.Where(c => !File.Exists(c.File)).Select(c => c.File).ToList();
+        if (missing.Count > 0)
         {
             step.Status = StatusLevel.Warning;
-            step.Details = $"Не найдена программа импорта: {executable}. Континент-АП установлен?";
-            _logger.Warning($"Настройка: {step.Title}", "Программа импорта конфигурации не найдена", executable);
+            step.Details = $"Не найдены файлы: {string.Join(", ", missing)}";
+            _logger.Warning($"Настройка: {step.Title}", "Файлы для Континент-АП не найдены", string.Join("; ", missing));
             return;
         }
 
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(10, settings.ImportTimeoutSeconds)));
-
-        try
+        var done = new List<string>();
+        foreach (var (label, arguments, _) in commands)
         {
-            var status = new Progress<string>(message => step.Details = message);
-            var result = await _installerService.RunAsync(
-                executable, BuildKontinentImportArguments(settings.ImportArguments, configFile), "Импорт конфигурации Континент-АП", status, timeout.Token);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(10, settings.CommandTimeoutSeconds)));
+            try
+            {
+                var status = new Progress<string>(message => step.Details = message);
+                var result = await _installerService.RunAsync(console, arguments, $"Континент-АП: {label}", status, timeout.Token);
+                if (!result.Success)
+                {
+                    step.Status = StatusLevel.Error;
+                    step.Details = $"Не добавлен {label} (код {result.ExitCode}). Добавлено ранее: {(done.Count == 0 ? "ничего" : string.Join(", ", done))}. {result.ErrorMessage}".Trim();
+                    return;
+                }
 
-            step.Status = result.Success ? StatusLevel.Ok : StatusLevel.Error;
-            step.NeedsReboot = result.Success && result.RebootRequired;
-            step.Details = result.Success
-                ? "Конфигурация импортирована"
-                : $"Импорт завершился с кодом {result.ExitCode}. {result.ErrorMessage}".Trim();
+                done.Add(label);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                step.Status = StatusLevel.Error;
+                step.Details = $"Команда для «{label}» не завершилась за {settings.CommandTimeoutSeconds} с";
+                _logger.Error($"Настройка: {step.Title}", "Команда клиента Континент-АП превысила время ожидания", label);
+                return;
+            }
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            step.Status = StatusLevel.Error;
-            step.Details = $"Импорт не завершился за {settings.ImportTimeoutSeconds} с";
-            _logger.Error($"Настройка: {step.Title}", "Импорт конфигурации Континент-АП превысил время ожидания");
-        }
+
+        step.Status = StatusLevel.Ok;
+        step.Details = $"Добавлено: {string.Join(", ", done)}" + (viaCryptoPro ? " (сертификаты через КриптоПро)" : " (сертификаты через Континент-АП)");
     }
 
-    /// <summary>Подставляет в аргументы импорта полный путь к файлу конфигурации (в кавычках) вместо <c>{config}</c>.</summary>
-    internal static string BuildKontinentImportArguments(string template, string configFile)
+    private enum KontinentMode { CryptoPro, Continent }
+
+    /// <summary>Режим из конфигурации; Auto выбирается по наличию установленного КриптоПро CSP.</summary>
+    private KontinentMode ResolveKontinentMode(string configured)
     {
-        var quoted = $"\"{configFile}\"";
-        return string.IsNullOrWhiteSpace(template)
-            ? quoted
-            : template.Replace("{config}", quoted, StringComparison.OrdinalIgnoreCase).Trim();
+        if (configured.Equals("CryptoPro", StringComparison.OrdinalIgnoreCase)) return KontinentMode.CryptoPro;
+        if (configured.Equals("Continent", StringComparison.OrdinalIgnoreCase)) return KontinentMode.Continent;
+        return _cryptoProService.CheckCsp().Status == StatusLevel.Ok ? KontinentMode.CryptoPro : KontinentMode.Continent;
     }
+
+    private void AddCertificateCommand(List<(string Label, string Arguments, string File)> commands, string label, string configuredPath, string key)
+    {
+        if (string.IsNullOrWhiteSpace(configuredPath))
+        {
+            return;
+        }
+
+        var file = _configService.ResolvePath(configuredPath);
+        commands.Add((label, $"{key} --path {Quote(file)}", file));
+    }
+
+    private static string Quote(string path) => "\"" + path + "\"";
 
     private async Task InstallCaCertificatesAsync(SetupStepModel step, CancellationToken cancellationToken)
     {
