@@ -222,7 +222,7 @@ public sealed class CryptoProService : ICryptoProService
             InstalledVersion = product?.DisplayVersion,
             Description = product is null
                 ? "Не установлен — проверка не требуется"
-                : "Обнаружен: приложение не меняет его настройки, интеграцию с КриптоПро выполняйте по документации продукта",
+                : "Обнаружен. Приложение может импортировать в него файл конфигурации (шаг мастера); интеграцию с КриптоПро выполняйте по документации продукта",
             Status = product is null ? StatusLevel.NotChecked : StatusLevel.Ok
         };
     }

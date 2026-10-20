@@ -147,7 +147,13 @@ public static class HelpAdvisor
                 "Закройте Chromium GOST и повторите установку. Если ошибка осталась, смотрите журнал.",
             SetupStepKind.InstallKonturPlugin or SetupStepKind.VerifyKonturPlugin or SetupStepKind.InstallGosuslugiPlugin or SetupStepKind.VerifyGosuslugiPlugin =>
                 "Закройте браузеры и повторите установку плагина от имени администратора.",
-            _ => status == StatusLevel.Error ? "Нажмите «Повторить». Если ошибка повторяется, посмотрите журнал или соберите пакет для поддержки (Настройки)." : null
+            SetupStepKind.InstallKontinentAp or SetupStepKind.VerifyKontinentAp =>
+                "Закройте Континент-АП и повторите установку от имени администратора. Если установщик не принимает ключи тихой установки, " +
+                "проверьте SilentArgs в разделе Installers → KontinentAp файла Config.json; подробности — в журнале и в msi-*.log.",
+            SetupStepKind.ImportKontinentConfig =>
+                "Проверьте, что Континент-АП установлен и в Config.json (раздел Kontinent) указаны файл конфигурации и команда импорта " +
+                "по документации вашей версии клиента. Конфигурацию можно импортировать и вручную из интерфейса Континент-АП.",
+            _ => status == StatusLevel.Error ? "Нажмите «Повторить». Если ошибка повторяется, посмотрите журнал или соберите пакет дляподдержки (Настройки)." : null
         };
     }
 

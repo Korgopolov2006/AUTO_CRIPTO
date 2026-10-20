@@ -168,8 +168,10 @@ public sealed partial class UninstallService : IUninstallService
         var product = FindProduct(definition);
         if (product is null)
         {
+            // Саму программу уже удалили, но её настройки могли остаться: убираем и их.
+            var leftoverSettings = RemoveProductData(definition);
             step.Status = StatusLevel.Ok;
-            step.Details = "Не установлено";
+            step.Details = leftoverSettings > 0 ? $"Не установлено. Удалены оставшиеся настройки программы (папок: {leftoverSettings})" : "Не установлено";
             return;
         }
 
@@ -225,8 +227,10 @@ public sealed partial class UninstallService : IUninstallService
 
         if (!stillListed)
         {
+            var settingsRemoved = RemoveProductData(definition);
             step.Status = StatusLevel.Ok;
-            step.Details = result.RebootRequired ? "Удалено, для завершения требуется перезагрузка компьютера" : "Удалено";
+            step.Details = (result.RebootRequired ? "Удалено, для завершения требуется перезагрузка компьютера" : "Удалено")
+                           + (settingsRemoved > 0 ? $". Удалены настройки программы (папок: {settingsRemoved})" : string.Empty);
             return;
         }
 
@@ -241,6 +245,36 @@ public sealed partial class UninstallService : IUninstallService
 
         step.Status = StatusLevel.Error;
         step.Details = $"Не удалось удалить (код {result.ExitCode}). {result.ErrorMessage}".Trim();
+    }
+
+    /// <summary>
+    /// Удаляет папки с настройками программы из <see cref="UninstallProductDefinition.DataPaths"/> (если они есть и путь безопасен);
+    /// возвращает, сколько папок удалено. Ошибки не прерывают удаление: они попадают в журнал.
+    /// </summary>
+    private int RemoveProductData(UninstallProductDefinition definition)
+    {
+        var removed = 0;
+        foreach (var pattern in definition.DataPaths)
+        {
+            var path = Environment.ExpandEnvironmentVariables(pattern);
+            if (!IsSafeToDelete(path) || !Directory.Exists(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                Directory.Delete(path, recursive: true);
+                removed++;
+                _logger.Info($"{Action}: {definition.Name}", $"Удалена папка с настройками: {path}");
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning($"{Action}: {definition.Name}", "Не удалось удалить папку с настройками", $"{path}: {ex.Message}");
+            }
+        }
+
+        return removed;
     }
 
     /// <summary>
@@ -281,9 +315,14 @@ public sealed partial class UninstallService : IUninstallService
             // MSIRESTARTMANAGERCONTROL=Disable: иначе «Диспетчер перезапуска» Windows Installer закрывает приложение, держащее файлы
             // КриптоПро (процесс подгружает их сам), и удаление обрывается. Занятые файлы удалятся при перезагрузке.
             var code = ExtractProductCode(product.KeyName) ?? ExtractProductCode(product.UninstallString);
-            return code is null
-                ? (null, string.Empty)
-                : ("msiexec.exe", $"/x {code} /qn /norestart MSIRESTARTMANAGERCONTROL=Disable {definition.Args}".Trim());
+            if (code is not null)
+            {
+                return ("msiexec.exe", $"/x {code} /qn /norestart MSIRESTARTMANAGERCONTROL=Disable {definition.Args}".Trim());
+            }
+
+            // Кода продукта нет (установщик-оболочка, не MSI в «чистом» виде): удаляем командой из реестра с ключами из Args.
+            var (fallbackPath, fallbackRest) = SplitCommand(product.UninstallString);
+            return fallbackPath is null ? (null, string.Empty) : (fallbackPath, $"{fallbackRest} {definition.Args}".Trim());
         }
 
         var (path, rest) = SplitCommand(product.UninstallString);

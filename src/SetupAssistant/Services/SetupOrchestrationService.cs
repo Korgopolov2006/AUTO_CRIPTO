@@ -169,6 +169,22 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
                 VerifyComponent(step, _browserService.CheckKonturPlugin());
                 break;
 
+            case SetupStepKind.InstallKontinentAp:
+                await RunInstall(step, installers.KontinentAp, cancellationToken);
+                break;
+
+            case SetupStepKind.VerifyKontinentAp:
+                var kontinent = _cryptoProService.CheckKontinentAp();
+                step.Status = kontinent.Status == StatusLevel.Ok ? StatusLevel.Ok : StatusLevel.Error;
+                step.Details = kontinent.Status == StatusLevel.Ok
+                    ? $"Версия {kontinent.InstalledVersion} — проверка пройдена"
+                    : "Континент-АП не установлен";
+                break;
+
+            case SetupStepKind.ImportKontinentConfig:
+                await ImportKontinentConfigAsync(step, cancellationToken);
+                break;
+
             case SetupStepKind.InstallBrowserExtensions:
                 var extResult = await _extensionService.InstallExtensionsAsync(cancellationToken);
                 step.Status = extResult.Success ? StatusLevel.Ok : StatusLevel.Error;
@@ -232,6 +248,7 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         SetupStepKind.InstallRutokenDriver => _tokenService.CheckRutokenDriver(),
         SetupStepKind.InstallKonturPlugin => _browserService.CheckKonturPlugin(),
         SetupStepKind.InstallGosuslugiPlugin => _browserService.CheckGosuslugiPlugin(),
+        SetupStepKind.InstallKontinentAp => _cryptoProService.CheckKontinentAp(),
         SetupStepKind.InstallChromiumGost => _configService.Current.SupportedBrowsers
             .Where(b => b.Kind == BrowserKind.ChromiumGost)
             .Select(_browserService.CheckBrowser)
@@ -371,6 +388,73 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
     {
         var match = System.Text.RegularExpressions.Regex.Match(Path.GetFileName(fileNameOrPath), @"\d+(\.\d+){2,3}");
         return match.Success ? match.Value : null;
+    }
+
+    /// <summary>
+    /// Импортирует файл конфигурации в Континент-АП командой из раздела Kontinent в Config.json. Ключи импорта у разных версий
+    /// клиента разные, поэтому команда задаётся в конфигурации по документации продукта, а не зашита в приложение.
+    /// </summary>
+    private async Task ImportKontinentConfigAsync(SetupStepModel step, CancellationToken cancellationToken)
+    {
+        var settings = _configService.Current.Kontinent;
+
+        var configFile = await Task.Run(() => _configService.ResolvePath(settings.ConfigPath), cancellationToken);
+        if (!File.Exists(configFile))
+        {
+            step.Status = StatusLevel.Warning;
+            step.Details = $"Файл конфигурации не найден: {configFile}";
+            _logger.Warning($"Настройка: {step.Title}", "Файл конфигурации Континент-АП не найден", configFile);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(settings.ImportExecutable))
+        {
+            step.Status = StatusLevel.Warning;
+            step.Details = "Команда импорта не задана в Config.json (раздел Kontinent: ImportExecutable и ImportArguments). " +
+                           "Ключи импорта смотрите в документации установленной версии Континент-АП; файл можно импортировать и вручную.";
+            _logger.Warning($"Настройка: {step.Title}", "Шаг пропущен: команда импорта конфигурации не задана");
+            return;
+        }
+
+        var executable = Environment.ExpandEnvironmentVariables(settings.ImportExecutable);
+        if (!File.Exists(executable))
+        {
+            step.Status = StatusLevel.Warning;
+            step.Details = $"Не найдена программа импорта: {executable}. Континент-АП установлен?";
+            _logger.Warning($"Настройка: {step.Title}", "Программа импорта конфигурации не найдена", executable);
+            return;
+        }
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(Math.Max(10, settings.ImportTimeoutSeconds)));
+
+        try
+        {
+            var status = new Progress<string>(message => step.Details = message);
+            var result = await _installerService.RunAsync(
+                executable, BuildKontinentImportArguments(settings.ImportArguments, configFile), "Импорт конфигурации Континент-АП", status, timeout.Token);
+
+            step.Status = result.Success ? StatusLevel.Ok : StatusLevel.Error;
+            step.NeedsReboot = result.Success && result.RebootRequired;
+            step.Details = result.Success
+                ? "Конфигурация импортирована"
+                : $"Импорт завершился с кодом {result.ExitCode}. {result.ErrorMessage}".Trim();
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            step.Status = StatusLevel.Error;
+            step.Details = $"Импорт не завершился за {settings.ImportTimeoutSeconds} с";
+            _logger.Error($"Настройка: {step.Title}", "Импорт конфигурации Континент-АП превысил время ожидания");
+        }
+    }
+
+    /// <summary>Подставляет в аргументы импорта полный путь к файлу конфигурации (в кавычках) вместо <c>{config}</c>.</summary>
+    internal static string BuildKontinentImportArguments(string template, string configFile)
+    {
+        var quoted = $"\"{configFile}\"";
+        return string.IsNullOrWhiteSpace(template)
+            ? quoted
+            : template.Replace("{config}", quoted, StringComparison.OrdinalIgnoreCase).Trim();
     }
 
     private async Task InstallCaCertificatesAsync(SetupStepModel step, CancellationToken cancellationToken)
