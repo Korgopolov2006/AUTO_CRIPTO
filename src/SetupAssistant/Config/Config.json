@@ -74,21 +74,31 @@
     // вашей версии (тихая установка без окон и без перезагрузки). Пример: "Path": "Appendices\\Континент-АП\\ContinentAP.msi",
     // "Kind": "Msi", "SilentArgs": "". Автоматически не обновляется (UpdateUrl не задан).
     "KontinentAp": {
-      "Path": "",
-      "Kind": "Msi",
-      "SilentArgs": ""
+      "Path": "Appendices\\Континент-АП\\Континент-АП.exe",
+      "Kind": "Exe",
+      "SilentArgs": "/quiet /norestart"
     }
   },
 
-  // Настройка Континент-АП: импорт файла конфигурации (профиля подключения), который выдаёт администратор сервера доступа.
-  // ConfigPath — файл (например, "Appendices\\Континент-АП\\config.cfg"); пусто — импорт не выполняется. ImportExecutable и
-  // ImportArguments — команда импорта по документации вашей версии клиента ({config} заменяется на полный путь к файлу в кавычках).
-  // Пока ImportExecutable пуст, шаг сообщит, что команда не задана; конфигурацию тогда можно импортировать вручную.
+  // Настройка Континент-АП: профиль подключения и сертификаты добавляются командами консольной программы клиента.
+  // Mode: Auto — через КриптоПро, если он установлен (сертификат из его контейнеров), иначе через Континент-АП; CryptoPro / Continent — принудительно.
+  // ProfilePath — JSON-профиль (--addProfile), ProfileScope: User — для пользователя, Global — общий (-g).
+  // ServerCertificatePath / RootCertificatePath — файлы сертификатов (--importServerCertificate / --importRootCertificate), только в режиме Continent.
+  // Пустые пути — шаг не добавляется. ConsolePath — VpnClientConsole.exe по умолчанию.
   "Kontinent": {
-    "ConfigPath": "",
-    "ImportExecutable": "",
-    "ImportArguments": "{config}",
-    "ImportTimeoutSeconds": 120
+    "Mode": "Auto",
+    "ConsolePath": "%ProgramFiles%\\Security Code\\Continent VPN Client\\VpnClientConsole.exe",
+    "ProfilePath": "",
+    "ProfileScope": "User",
+    "ServerCertificatePath": "",
+    "RootCertificatePath": "",
+    "CommandTimeoutSeconds": 120,
+    "RegistrationProgramPath": "%ProgramFiles%\\Security Code\\Continent VPN Client\\Registration.exe",
+    "RegistrationFields": [
+      { "Field": "ФИО", "Format": "Фамилия Имя Отчество полностью, с заглавной буквы", "Example": "Фамилия Имя Отчество" },
+      { "Field": "Логин", "Format": "Латиница или как в учётной записи, без пробелов", "Example": "login" },
+      { "Field": "Почта", "Format": "Адрес с символом @ и доменом", "Example": "name@example.ru" }
+    ]
   },
 
   "MinVersions": {
@@ -148,14 +158,22 @@
         "DisplayNamePatterns": [ "Континент-АП", "Континент АП", "Continent-AP", "Continent AP" ],
         "Kind": "Msi",
         "Args": "",
+        "Group": "Kontinent",
         "ProcessPathContains": "\\Security Code\\",
         "DataPaths": [
           "%ProgramData%\\Security Code\\Continent-AP",
           "%ProgramData%\\Security Code\\Continent AP",
           "%APPDATA%\\Security Code\\Continent-AP",
-          "%LOCALAPPDATA%\\Security Code\\Continent-AP"
+          "%LOCALAPPDATA%\\Security Code\\Continent-AP",
+          "%ProgramFiles%\\Security Code\\Continent VPN Client"
+        ],
+        "RegistryPaths": [
+          "HKLM\\SOFTWARE\\SecurityCode",
+          "HKLM\\SOFTWARE\\WOW6432Node\\SecurityCode"
         ]
       },
+      { "Name": "eXtended Container (библиотека криптоконтейнеров)", "DisplayNamePatterns": [ "eXtended Container" ], "Kind": "Msi", "Group": "Kontinent", "RegistryPaths": [ "HKLM\\SOFTWARE\\Security Code\\XC" ] },
+      { "Name": "Код Безопасности CSP", "DisplayNamePatterns": [ "Код Безопасности CSP" ], "Kind": "Msi", "Group": "Kontinent", "DataPaths": [ "%ProgramFiles%\\Security Code\\CSP" ] },
       { "Name": "Контур.Плагин (Диаг.Плагин)", "DisplayNamePatterns": [ "Диаг.Плагин", "Контур.Плагин" ], "Kind": "Exe", "Args": "/S", "ProcessPathContains": "\\SkbKontur\\" },
       { "Name": "Плагин Госуслуг", "DisplayNamePatterns": [ "Плагин пользователя систем электронного правительства" ], "Kind": "Msi" },
       { "Name": "КриптоПро ЭЦП Browser plug-in", "DisplayNamePatterns": [ "КриптоПро ЭЦП Browser plug-in", "CryptoPro Browser plug-in" ], "Kind": "Msi" },
@@ -195,7 +213,9 @@
     "EmptyLeftoverRegistryKeys": [
       "HKLM\\SOFTWARE\\Crypto Pro",
       "HKLM\\SOFTWARE\\WOW6432Node\\Crypto Pro",
-      "HKCU\\SOFTWARE\\Crypto Pro"
+      "HKCU\\SOFTWARE\\Crypto Pro",
+      "HKLM\\SOFTWARE\\SecurityCode",
+      "HKLM\\SOFTWARE\\WOW6432Node\\SecurityCode"
     ],
     "OrphanProgIdPrefixes": [ "CAdESCOM." ]
   },

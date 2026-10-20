@@ -127,6 +127,34 @@ public partial class SettingsViewModel : ViewModelBase
         }
     }
 
+    /// <summary>
+    /// Подсказка для ручной регистрации Континент-АП: список полей и форматов. Ничего не заполняет и не отправляет;
+    /// программа регистрации открывается только если пользователь сам нажал «Открыть».
+    /// </summary>
+    [RelayCommand]
+    private void ShowKontinentRegistrationHelp()
+    {
+        var kontinent = Config.Kontinent;
+        var lines = kontinent.RegistrationFields.Select(f => $"• {f.Field}: {f.Format} (пример: {f.Example})");
+        var message = "Заполните форму регистрации Континент-АП самостоятельно и отправьте её сами.\n\n" +
+                      string.Join("\n", lines) +
+                      "\n\nПрограмма регистрации откроется, только если вы нажмёте «Открыть».";
+
+        if (!_dialogService.ConfirmChoice(message, "Регистрация Континент-АП", "Открыть программу регистрации", "Закрыть"))
+        {
+            return;
+        }
+
+        var program = Environment.ExpandEnvironmentVariables(kontinent.RegistrationProgramPath);
+        if (!System.IO.File.Exists(program))
+        {
+            _dialogService.ShowWarning($"Программа регистрации не найдена: {program}. Континент-АП установлен?");
+            return;
+        }
+
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(program) { UseShellExecute = true });
+    }
+
     [RelayCommand]
     private Task CreateSupportBundleAsync() =>
         Helpers.SupportBundleWorkflow.RunAsync(_dialogService, _notifications, _supportBundle, _systemService);

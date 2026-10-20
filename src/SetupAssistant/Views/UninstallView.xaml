@@ -24,6 +24,10 @@
 
         <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,16">
             <Button Content="Удалить" Style="{StaticResource AccentButtonStyle}" Command="{Binding StartUninstallCommand}" />
+            <Button Content="КриптоПро" Margin="12,0,0,0" Command="{Binding UninstallCryptoProCommand}" IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBool}}"
+                    ToolTip="Удалить КриптоПро и остальные компоненты, Континент-АП и его настройки не трогать" />
+            <Button Content="КриптоПро с Континентом" Margin="8,0,0,0" Command="{Binding UninstallCryptoProWithKontinentCommand}" IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBool}}"
+                    ToolTip="Удалить КриптоПро, остальные компоненты и Континент-АП с его настройками" />
             <Button Content="Обновить список" Margin="12,0,0,0" Command="{Binding RescanCommand}" />
             <Button Content="Отмена" Margin="12,0,0,0" Command="{Binding CancelUninstallCommand}"
                     Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}" />

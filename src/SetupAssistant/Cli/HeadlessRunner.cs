@@ -54,7 +54,7 @@ public sealed class HeadlessRunner
 
             if (options.Uninstall)
             {
-                return await UninstallAsync();
+                return await UninstallAsync(options.KontinentOnly);
             }
 
             return options.Check ? await CheckAsync(options) : await SilentAsync(options);
@@ -154,12 +154,16 @@ public sealed class HeadlessRunner
     }
 
     /// <summary>Откат настройки без окна: те же шаги, что на экране «Удаление»; личные сертификаты не удаляются.</summary>
-    private async Task<int> UninstallAsync()
+    private async Task<int> UninstallAsync(bool kontinentOnly)
     {
         _services.GetRequiredService<ILoggingService>().Info("Тихое удаление", "Запуск без окна (--uninstall)");
 
         var service = _services.GetRequiredService<IUninstallService>();
-        var steps = service.BuildPlan(new UninstallOptions(RemovePersonalCertificates: false));
+        IReadOnlyList<SetupStepModel> steps = service.BuildPlan(new UninstallOptions(RemovePersonalCertificates: false));
+        if (kontinentOnly)
+        {
+            steps = steps.Where(s => service.IsKontinentStep(s)).ToList();
+        }
         var total = steps.Count;
         var finished = 0;
 

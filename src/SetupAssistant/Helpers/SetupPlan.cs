@@ -31,9 +31,12 @@ public static class SetupPlan
         if (configService.Current.Installers.KontinentAp.IsConfigured)
         {
             Pair(SetupStepKind.InstallKontinentAp, "Установка Континент-АП", SetupStepKind.VerifyKontinentAp, "Проверка Континент-АП");
-            if (!string.IsNullOrWhiteSpace(configService.Current.Kontinent.ConfigPath))
+            var kontinent = configService.Current.Kontinent;
+            if (!string.IsNullOrWhiteSpace(kontinent.ProfilePath)
+                || !string.IsNullOrWhiteSpace(kontinent.ServerCertificatePath)
+                || !string.IsNullOrWhiteSpace(kontinent.RootCertificatePath))
             {
-                Single(SetupStepKind.ImportKontinentConfig, "Импорт конфигурации Континент-АП");
+                Single(SetupStepKind.ImportKontinentConfig, "Профиль и сертификаты Континент-АП");
             }
         }
 

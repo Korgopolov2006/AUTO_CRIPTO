@@ -18,6 +18,12 @@
         <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,10">
             <Button Content="Начать настройку" Style="{StaticResource AccentButtonStyle}" Margin="0,0,12,6" Padding="18,6"
                     Command="{Binding StartSetupCommand}" />
+            <Button Content="КриптоПро" Style="{StaticResource AccentButtonStyle}" Margin="0,0,8,6" Padding="18,6"
+                    Command="{Binding SetupCryptoProCommand}" IsEnabled="{Binding CanEditSelection}"
+                    ToolTip="Настройка КриптоПро и остальных компонентов, без Континент-АП" />
+            <Button Content="КриптоПро с Континентом" Style="{StaticResource AccentButtonStyle}" Margin="0,0,12,6" Padding="18,6"
+                    Command="{Binding SetupCryptoProWithKontinentCommand}" IsEnabled="{Binding CanEditSelection}"
+                    ToolTip="Настройка КриптоПро, остальных компонентов и Континент-АП (если в конфигурации задан его дистрибутив)" />
             <Button Content="Отмена" Margin="0,0,12,6" Padding="18,6" Command="{Binding CancelSetupCommand}"
                     Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}" />
             <Button Content="Выбрать всё" Margin="0,0,8,6" Command="{Binding SelectAllCommand}"
