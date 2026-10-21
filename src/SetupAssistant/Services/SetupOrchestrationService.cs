@@ -34,6 +34,9 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
     /// <summary>Установка компонента, которого не было до запуска, начата (завершена, прервана или упала): при отмене её откатываем.</summary>
     private readonly HashSet<SetupStepKind> _startedFresh = new();
 
+    /// <summary>Установщик завис до перезагрузки и держит Windows Installer: остальные установки откладываются.</summary>
+    private bool _installerHung;
+
     /// <summary>Название продукта в списке удаления (Config.Uninstall.Products) для каждого шага установки.</summary>
     private static readonly Dictionary<SetupStepKind, string[]> RollbackProducts = new()
     {
@@ -86,6 +89,7 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         _installedInThisRun.Clear();
         _rebootFirstInThisRun.Clear();
         _startedFresh.Clear();
+        _installerHung = false;
 
         foreach (var step in steps)
         {
@@ -336,6 +340,17 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
             _logger.Info($"Настройка: {step.Title}", $"Доступна новая версия: установлена {installedVersion}, будет установлена {newer}");
         }
 
+        // Зависший установщик отпустит Windows Installer только при перезагрузке: остальные установки лишь встали бы за ним в очередь.
+        if (_installerHung)
+        {
+            step.Status = StatusLevel.Error;
+            step.NeedsReboot = true;
+            step.Details = "Отложено до перезагрузки: установщик Windows занят зависшей установкой";
+            _rebootFirstInThisRun.Add(step.Kind);
+            _logger.Warning($"Настройка: {step.Title}", "Шаг отложен до перезагрузки: установщик Windows занят зависшей установкой");
+            return;
+        }
+
         if (!installer.IsConfigured)
         {
             step.Status = StatusLevel.Warning;
@@ -402,6 +417,7 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         else if (result.RebootBeforeRetry)
         {
             _rebootFirstInThisRun.Add(step.Kind);
+            _installerHung |= result.InstallerHung;
         }
 
         step.Details = result.Success

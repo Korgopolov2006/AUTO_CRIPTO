@@ -333,6 +333,15 @@ public sealed partial class UninstallService : IUninstallService
         var status = new Progress<string>(message => step.Details = message);
         var result = await _installerService.RunAsync(file, arguments, Action, status, cancellationToken);
 
+        // Удаление КриптоПро, вставшее на остановке драйвера, Windows доделывает при перезагрузке (так и было на практике).
+        if (result.InstallerHung)
+        {
+            step.Status = StatusLevel.Warning;
+            step.NeedsReboot = true;
+            step.Details = result.ErrorMessage;
+            return;
+        }
+
         // Код возврата может быть «нужна перезагрузка» или «уже удалено», поэтому итог определяет реестр.
         var stillListed = FindProduct(definition) is not null;
 

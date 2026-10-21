@@ -113,6 +113,11 @@ public sealed class InstallerService : IInstallerService
                 return LogResult(run, actionLabel, processName, msiLogPath);
             }
         }
+        catch (InstallerHungException ex)
+        {
+            _logger.Warning($"{actionLabel} ({processName})", $"Установщик завис, ожидание прекращено: {ex.Message}", msiLogPath);
+            return new InstallResult(false, -1, ex.Message, RebootBeforeRetry: true, InstallerHung: true);
+        }
         catch (OperationCanceledException)
         {
             _logger.Warning($"{actionLabel} ({processName})",
@@ -200,6 +205,12 @@ public sealed class InstallerService : IInstallerService
                 lastLogSize = logSize;
                 lastGrowth = stopwatch.Elapsed;
                 stallReported = false;
+            }
+
+            // КриптоПро, вставший на своём драйвере, сам не продолжит: ждать 10 минут незачем, сразу просим перезагрузку.
+            if (msiLogPath is not null && stopwatch.Elapsed - lastGrowth >= CryptoProDriverHang.Threshold && CryptoProDriverHang.EndsInDriverAction(msiLogPath))
+            {
+                throw new InstallerHungException(CryptoProDriverHang.Message);
             }
 
             if (msiLogPath is not null && stopwatch.Elapsed - lastGrowth >= StallThreshold)
@@ -334,6 +345,12 @@ public sealed class InstallerService : IInstallerService
 
         while (WindowsInstallerState.IsBusy())
         {
+            // Установщик держит зависшая на драйвере операция КриптоПро (например, из прошлого запуска окна): её не дождаться.
+            if (CryptoProDriverHang.FindStuckLog(MsiLogDirectory()) is { } stuckLog)
+            {
+                throw new InstallerHungException(CryptoProDriverHang.BusyMessage(stuckLog.LastWriteTime));
+            }
+
             if (stopwatch.Elapsed > MaxInstallerWait)
             {
                 _logger.Error(action, "Windows Installer не освободился за отведённое время, установка запускается как есть");
@@ -358,7 +375,7 @@ public sealed class InstallerService : IInstallerService
 
         try
         {
-            var directory = _configService.ResolvePath(_configService.Current.Logging.LogDirectory);
+            var directory = MsiLogDirectory();
             Directory.CreateDirectory(directory);
             var logPath = Path.Combine(directory, $"msi-{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.log");
             _logger.Info($"{actionLabel} (msiexec.exe)", $"Подробный журнал установщика: {logPath}");
@@ -369,6 +386,11 @@ public sealed class InstallerService : IInstallerService
             return (arguments, null);
         }
     }
+
+    private string MsiLogDirectory() => _configService.ResolvePath(_configService.Current.Logging.LogDirectory);
+
+    /// <summary>Установщик завис так, что отпустит Windows Installer только при перезагрузке: ждать его бесполезно.</summary>
+    private sealed class InstallerHungException(string message) : Exception(message);
 
     /// <summary>В журнале msiexec есть отказ пакета «сначала перезагрузка» (действие вида RebootRequiredFor…, а не обычная ошибка установки).</summary>
     private static bool MsiLogShowsRebootRequired(string? logPath)
@@ -407,7 +429,7 @@ public sealed class InstallerService : IInstallerService
         var message = $"{actionLabel} выполняется: {FormatElapsed(elapsed)}.";
         return elapsed < TimeSpan.FromMinutes(3)
             ? message
-            : $"{message} Пакеты КриптоПро CSP могут обрабатываться 20–30 минут — не закрывайте окно и не отменяйте шаг.";
+            : $"{message} Обычно это занимает 1–2 минуты; если установщик зависнет, помощник подскажет, что делать.";
     }
 
     private static string FormatElapsed(TimeSpan elapsed) => $"{(int)elapsed.TotalMinutes}:{elapsed.Seconds:00}";
