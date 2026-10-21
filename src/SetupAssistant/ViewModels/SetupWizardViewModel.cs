@@ -394,6 +394,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         _cancellationTokenSource = new CancellationTokenSource();
         var stopwatch = Stopwatch.StartNew();
         var askToRestart = false;
+        var rollbackNeedsRestart = false;
 
         var progress = new Progress<SetupStepModel>(_ => UpdateProgress());
 
@@ -408,6 +409,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         catch (OperationCanceledException)
         {
             await RollBackCancelledRunAsync(stepsToRun, stopwatch.Elapsed);
+            rollbackNeedsRestart = RebootRequired;
         }
         catch (Exception ex)
         {
@@ -422,9 +424,33 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
 
         // Окно показываем после того, как прогресс снят: настройка закончена, осталось только перезагрузить компьютер.
-        if (askToRestart)
+        if (askToRestart && RebootPrompt.TryMarkAutoPrompted())
         {
             RestartAndResume();
+        }
+        else if (rollbackNeedsRestart && RebootPrompt.TryMarkAutoPrompted())
+        {
+            RestartAfterRollback();
+        }
+    }
+
+    /// <summary>Перезагрузка для завершения отката: отменённую настройку после входа не продолжаем.</summary>
+    private void RestartAfterRollback()
+    {
+        if (!RebootPrompt.Ask(_dialogService, "отката установки", "Отменённая настройка после перезагрузки не возобновится."))
+        {
+            return;
+        }
+
+        try
+        {
+            RebootPrompt.Schedule("Перезагрузка для завершения отката установки");
+            _logger.Info("Перезагрузка", "Запланирована перезагрузка через 30 секунд для завершения отката");
+            _notifications.Show(ToastKind.Info, "Перезагрузка через 30 секунд", "Отменить: команда shutdown /a в командной строке.");
+        }
+        catch (Exception ex)
+        {
+            _dialogService.ShowError($"Не удалось запланировать перезагрузку: {ex.Message}");
         }
     }
 
