@@ -27,6 +27,7 @@ public sealed class DownloadService : IDownloadService, IDisposable
         IProgress<double>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        string? partPath = null;
         try
         {
             var downloadUrl = string.IsNullOrWhiteSpace(githubAssetRegex)
@@ -43,7 +44,7 @@ public sealed class DownloadService : IDownloadService, IDisposable
             var directory = Path.Combine(Path.GetTempPath(), "SetupAssistant", "Downloads");
             Directory.CreateDirectory(directory);
             var targetPath = Path.Combine(directory, fileName);
-            var partPath = targetPath + ".part";
+            partPath = targetPath + ".part";
 
             var total = response.Content.Headers.ContentLength ?? -1;
             await using (var source = await response.Content.ReadAsStreamAsync(cancellationToken))
@@ -66,12 +67,30 @@ public sealed class DownloadService : IDownloadService, IDisposable
         }
         catch (OperationCanceledException)
         {
+            // Недокачанный файл не должен остаться в папке загрузок.
+            DeletePartial(partPath);
             throw;
         }
         catch (Exception ex)
         {
+            DeletePartial(partPath);
             _logger.Error("Загрузка дистрибутива", "Не выполнена", $"{url}: {ex.Message}");
             return null;
+        }
+    }
+
+    private void DeletePartial(string? partPath)
+    {
+        try
+        {
+            if (partPath is not null && File.Exists(partPath))
+            {
+                File.Delete(partPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning("Загрузка дистрибутива", "Не удалось удалить недокачанный файл", ex.Message);
         }
     }
 

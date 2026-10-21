@@ -151,6 +151,27 @@ public sealed class InstallerService : IInstallerService
         process.Start();
         _logger.Info($"{actionLabel} ({processName})", "Запущена, ожидание завершения");
 
+        try
+        {
+            return await WaitForProcessAsync(process, actionLabel, processName, msiLogPath, status, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Отмена: установщик нельзя оставлять работать в фоне, иначе он продолжит ставить компонент уже после «Отмены».
+            await StopAfterCancelAsync(process, actionLabel, processName, processName.Equals("msiexec.exe", StringComparison.OrdinalIgnoreCase));
+            throw;
+        }
+    }
+
+    private async Task<(int ExitCode, string StdErr)> WaitForProcessAsync(
+        Process process,
+        string actionLabel,
+        string processName,
+        string? msiLogPath,
+        IProgress<string>? status,
+        CancellationToken cancellationToken)
+    {
+
         // Вывод читаем и отбрасываем: иначе заполненный канал может подвесить шумный установщик.
         var stdOutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
         var stdErrTask = process.StandardError.ReadToEndAsync(cancellationToken);
@@ -208,6 +229,69 @@ public sealed class InstallerService : IInstallerService
         await stdOutTask;
         var stdErr = await stdErrTask;
         return (process.ExitCode, stdErr);
+    }
+
+    private const int KillWaitMilliseconds = 15_000;
+    private static readonly TimeSpan InstallerReleaseWait = TimeSpan.FromSeconds(45);
+
+    /// <summary>
+    /// Останавливает процесс установщика с дочерними (в том числе завис на вызове диспетчера служб) и для MSI дожидается, пока
+    /// Windows Installer освободится; если он так и остался занятым, завершает оставшиеся процессы msiexec.exe.
+    /// </summary>
+    private async Task StopAfterCancelAsync(Process process, string actionLabel, string processName, bool isMsi)
+    {
+        var action = $"{actionLabel} ({processName})";
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit(KillWaitMilliseconds);
+                _logger.Warning(action, "Процесс установщика завершён принудительно (отмена)");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(action, "Не удалось завершить процесс установщика", ex.Message);
+        }
+
+        if (!isMsi)
+        {
+            return;
+        }
+
+        var stopwatch = Stopwatch.StartNew();
+        while (WindowsInstallerState.IsBusy() && stopwatch.Elapsed < InstallerReleaseWait)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+
+        if (!WindowsInstallerState.IsBusy())
+        {
+            return;
+        }
+
+        _logger.Warning(action, "Windows Installer остался занятым после отмены, завершаем оставшиеся процессы msiexec.exe");
+        var self = Environment.ProcessId;
+        foreach (var other in Process.GetProcessesByName("msiexec"))
+        {
+            try
+            {
+                if (other.Id != self)
+                {
+                    other.Kill(entireProcessTree: true);
+                    other.WaitForExit(KillWaitMilliseconds);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Warning(action, "Не удалось завершить msiexec.exe", ex.Message);
+            }
+            finally
+            {
+                other.Dispose();
+            }
+        }
     }
 
     private InstallResult LogResult((int ExitCode, string StdErr) run, string actionLabel, string processName, string? msiLogPath)

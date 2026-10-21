@@ -159,6 +159,122 @@ public sealed partial class UninstallService : IUninstallService
         }
     }
 
+    public async Task<RollbackResult> RollbackProductsAsync(IReadOnlyCollection<string> productNames, bool cleanCryptoProRemains, IProgress<string>? status, CancellationToken cancellationToken = default)
+    {
+        const string rollback = "Откат установки";
+        var removed = 0;
+        var failed = 0;
+        var needsReboot = false;
+
+        // Порядок из конфигурации обратен порядку установки (сначала зависимые компоненты, последним КриптоПро CSP).
+        foreach (var definition in _configService.Current.Uninstall.Products.Where(p => productNames.Contains(p.Name)))
+        {
+            if (FindProduct(definition) is null)
+            {
+                continue;
+            }
+
+            var step = new SetupStepModel { Kind = SetupStepKind.UninstallProduct, Key = definition.Name, Title = $"Откат: {definition.Name}" };
+            status?.Report($"Откат: удаляется {definition.Name}…");
+            step.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(SetupStepModel.Details) && !string.IsNullOrEmpty(step.Details))
+                {
+                    status?.Report($"Откат: {definition.Name}. {step.Details}");
+                }
+            };
+
+            try
+            {
+                await UninstallProductAsync(step, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                step.Status = StatusLevel.Error;
+                _logger.Error($"{rollback}: {definition.Name}", "Ошибка отката", ex.Message);
+            }
+
+            needsReboot |= step.NeedsReboot;
+            if (step.Status == StatusLevel.Ok)
+            {
+                removed++;
+            }
+            else
+            {
+                failed++;
+                _logger.Warning($"{rollback}: {definition.Name}", "Продукт не удалось откатить", step.Details);
+            }
+        }
+
+        if (cleanCryptoProRemains && failed == 0)
+        {
+            status?.Report("Откат: очистка остатков КриптоПро…");
+            var cleanup = new SetupStepModel { Kind = SetupStepKind.RemoveLeftovers, Title = "Откат: остатки КриптоПро" };
+            RemoveLeftovers(cleanup, cryptoProOnly: true);
+            _logger.Info(rollback, cleanup.Details ?? string.Empty);
+            needsReboot |= RemoveStaleDriver("CProCtrl");
+        }
+
+        TryDeleteDownloads();
+        return new RollbackResult(removed, failed, needsReboot);
+    }
+
+    /// <summary>Службу-драйвер, оставшуюся от прерванной установки, останавливает и удаляет. Истина — драйвер удалится только после перезагрузки.</summary>
+    private bool RemoveStaleDriver(string serviceName)
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{serviceName}");
+            if (key is null)
+            {
+                return false;
+            }
+
+            // Драйвер нужен только работающему КриптоПро: если его запись в списке программ ещё есть, он не «остаточный».
+            if (_configService.Current.Uninstall.Products.Any(p => p.Name == "КриптоПро CSP" && FindProduct(p) is not null))
+            {
+                return false;
+            }
+
+            RunSc($"stop {serviceName}");
+            var code = RunSc($"delete {serviceName}");
+            _logger.Info("Откат установки", $"Драйвер {serviceName} удалён из системы (код sc: {code})");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning("Откат установки", $"Не удалось удалить драйвер {serviceName}", ex.Message);
+            return false;
+        }
+    }
+
+    private static int RunSc(string arguments)
+    {
+        using var process = Process.Start(new ProcessStartInfo("sc.exe", arguments) { UseShellExecute = false, CreateNoWindow = true })
+                            ?? throw new InvalidOperationException("sc.exe не запущен");
+        return process.WaitForExit(15_000) ? process.ExitCode : -1;
+    }
+
+    private void TryDeleteDownloads()
+    {
+        try
+        {
+            var downloads = Path.Combine(Path.GetTempPath(), "SetupAssistant", "Downloads");
+            if (Directory.Exists(downloads))
+            {
+                Directory.Delete(downloads, recursive: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning("Откат установки", "Не удалось удалить скачанные файлы", ex.Message);
+        }
+    }
+
     // ---------- Продукты ----------
 
     private InstalledProductInfo? FindProduct(UninstallProductDefinition definition) =>
@@ -735,13 +851,14 @@ public sealed partial class UninstallService : IUninstallService
         return found;
     }
 
-    private void RemoveLeftovers(SetupStepModel step)
+    /// <param name="cryptoProOnly">Только следы КриптоПро (кэш установщика) и пустые оболочки: данные других программ не трогаются.</param>
+    private void RemoveLeftovers(SetupStepModel step, bool cryptoProOnly = false)
     {
         var folders = 0;
         var keys = 0;
         var problems = new List<string>();
 
-        foreach (var directory in ResolveLeftoverDirectories())
+        foreach (var directory in ResolveLeftoverDirectories().Where(d => !cryptoProOnly || d.Contains("Crypto Pro", StringComparison.OrdinalIgnoreCase)))
         {
             try
             {
@@ -755,7 +872,7 @@ public sealed partial class UninstallService : IUninstallService
             }
         }
 
-        foreach (var (hive, subKey) in ResolveLeftoverRegistryKeys())
+        foreach (var (hive, subKey) in cryptoProOnly ? new List<(RegistryKey Hive, string SubKey)>() : ResolveLeftoverRegistryKeys())
         {
             try
             {
