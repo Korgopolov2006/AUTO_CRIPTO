@@ -22,6 +22,7 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
     private readonly ITokenPinService _tokenPinService;
     private readonly ILoggingService _logger;
     private readonly IVersionService _versionService;
+    private readonly IUninstallService _uninstallService;
     private SetupRunOptions _options = new();
 
     /// <summary>Установки, фактически выполненные в текущем запуске: если проверка после них не прошла, вероятно, нужна перезагрузка.</summary>
@@ -29,6 +30,20 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
 
     /// <summary>Установки, отклонённые пакетом до перезагрузки Windows: их проверка не пройдёт, пока компьютер не перезагружен.</summary>
     private readonly HashSet<SetupStepKind> _rebootFirstInThisRun = new();
+
+    /// <summary>Установка компонента, которого не было до запуска, начата (завершена, прервана или упала): при отмене её откатываем.</summary>
+    private readonly HashSet<SetupStepKind> _startedFresh = new();
+
+    /// <summary>Название продукта в списке удаления (Config.Uninstall.Products) для каждого шага установки.</summary>
+    private static readonly Dictionary<SetupStepKind, string[]> RollbackProducts = new()
+    {
+        [SetupStepKind.InstallCryptoProCsp] = new[] { "КриптоПро CSP" },
+        [SetupStepKind.InstallBrowserPlugin] = new[] { "КриптоПро ЭЦП Browser plug-in" },
+        [SetupStepKind.InstallRutokenDriver] = new[] { "Драйверы Рутокен" },
+        [SetupStepKind.InstallGosuslugiPlugin] = new[] { "Плагин Госуслуг" },
+        [SetupStepKind.InstallKonturPlugin] = new[] { "Контур.Плагин (Диаг.Плагин)" },
+        [SetupStepKind.InstallKontinentAp] = new[] { "Континент-АП", "eXtended Container (библиотека криптоконтейнеров)", "Код Безопасности CSP" }
+    };
 
     public SetupOrchestrationService(
         IConfigService configService,
@@ -44,8 +59,10 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         IDialogService dialogService,
         ITokenPinService tokenPinService,
         ILoggingService logger,
-        IVersionService versionService)
+        IVersionService versionService,
+        IUninstallService uninstallService)
     {
+        _uninstallService = uninstallService;
         _versionService = versionService;
         _dialogService = dialogService;
         _tokenPinService = tokenPinService;
@@ -68,6 +85,7 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         _options = options ?? new SetupRunOptions();
         _installedInThisRun.Clear();
         _rebootFirstInThisRun.Clear();
+        _startedFresh.Clear();
 
         foreach (var step in steps)
         {
@@ -256,10 +274,44 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
         _ => null
     };
 
+    public async Task<RollbackSummary> RollbackAsync(IReadOnlyList<SetupStepModel> steps, IProgress<string>? status, CancellationToken cancellationToken = default)
+    {
+        var kinds = _startedFresh.ToList();
+        var products = kinds.Where(RollbackProducts.ContainsKey).SelectMany(k => RollbackProducts[k]).ToList();
+        var notSupported = kinds.Where(k => !RollbackProducts.ContainsKey(k))
+            .Select(k => steps.FirstOrDefault(s => s.Kind == k)?.Title ?? k.ToString())
+            .ToList();
+
+        _logger.Info("Откат установки", kinds.Count == 0
+            ? "Установка новых компонентов не начиналась — удалять нечего"
+            : $"Откат компонентов, установленных в этом запуске: {string.Join(", ", kinds)}");
+
+        var result = await _uninstallService.RollbackProductsAsync(
+            products,
+            cleanCryptoProRemains: kinds.Contains(SetupStepKind.InstallCryptoProCsp),
+            status,
+            cancellationToken);
+
+        foreach (var kind in kinds.Where(RollbackProducts.ContainsKey))
+        {
+            foreach (var step in steps.Where(s => s.Kind == kind || s.PairedInstallKind == kind))
+            {
+                step.Status = StatusLevel.Skipped;
+                step.NeedsReboot = false;
+                step.Details = "Отменено: установленное в этом запуске откачено";
+            }
+        }
+
+        return new RollbackSummary(result.Removed, result.Failed, result.NeedsReboot, notSupported);
+    }
+
     private async Task RunInstall(SetupStepModel step, InstallerDefinition installer, CancellationToken cancellationToken)
     {
         string? installedVersion = null;
         var updating = false;
+
+        // Что стояло до запуска, откатом не трогаем (даже при «Переустановить установленные»).
+        var preExisting = CheckInstalled(step.Kind) is { Status: StatusLevel.Ok };
 
         if (!_options.ForceReinstall && CheckInstalled(step.Kind) is { Status: StatusLevel.Ok } existing)
         {
@@ -334,6 +386,11 @@ public sealed class SetupOrchestrationService : ISetupOrchestrationService
 
         var status = new Progress<string>(message => step.Details = message);
         step.Details = "Установка запущена…";
+        if (!preExisting)
+        {
+            _startedFresh.Add(step.Kind);
+        }
+
         var result = await _installerService.InstallAsync(installer, status, cancellationToken);
 
         step.Status = result.Success ? StatusLevel.Ok : StatusLevel.Error;

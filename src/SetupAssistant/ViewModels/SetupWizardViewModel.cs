@@ -24,6 +24,11 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
     private readonly ILoggingService _logger;
 
     private CancellationTokenSource? _cancellationTokenSource;
+
+    /// <summary>Отмена запрошена: идёт остановка установщика и откат, повторное нажатие не нужно.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(CancelSetupCommand))]
+    private bool _isCancelling;
     private TimeSpan _lastRunDuration;
     private readonly ICollectionView _stepsView;
 
@@ -381,6 +386,8 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
 
         HasSummary = false;
+        IsCancelling = false;
+        PhaseText = null;
         IsRunning = true;
         IsCompleted = false;
         UpdateProgress();
@@ -400,8 +407,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
         catch (OperationCanceledException)
         {
-            _notifications.Show(ToastKind.Warning, "Настройка отменена", "Выполненные шаги остались как есть, остальные не запускались. Если шла установка компонента, Windows может ещё дозавершать её в фоне — следующий запуск дождётся.");
-            BuildSummary(stopwatch.Elapsed);
+            await RollBackCancelledRunAsync(stepsToRun, stopwatch.Elapsed);
         }
         catch (Exception ex)
         {
@@ -410,6 +416,8 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         finally
         {
             IsRunning = false;
+            IsCancelling = false;
+            PhaseText = null;
             UpdateProgress();
         }
 
@@ -420,6 +428,51 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
     }
 
+    /// <summary>После отмены откатывает установленное в этом запуске и показывает итог; ничего из стоявшего ранее не удаляется.</summary>
+    private async Task RollBackCancelledRunAsync(IReadOnlyList<SetupStepModel> stepsToRun, TimeSpan duration)
+    {
+        PhaseText = "Откат…";
+        var status = new Progress<string>(message => PhaseText = message);
+        RollbackSummary? rollback = null;
+        string? error = null;
+
+        try
+        {
+            // Токен отмены уже сработал, откат идёт без него: его нельзя бросать на середине.
+            rollback = await _orchestrationService.RollbackAsync(stepsToRun, status);
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            _logger.Error("Откат установки", "Не выполнен", ex.Message);
+        }
+
+        BuildSummary(duration, notify: false);
+        SummaryLevel = error is not null || rollback is { Failed: > 0 } ? StatusLevel.Error : StatusLevel.Warning;
+        SummaryTitle = SummaryLevel == StatusLevel.Error ? "Настройка отменена, откат выполнен не полностью" : "Настройка отменена";
+
+        var text = error is not null
+            ? $"Откат не выполнен: {error}. Установленные в этом запуске компоненты можно удалить на экране «Удаление»."
+            : rollback is { Removed: 0, Failed: 0 }
+                ? "Новые компоненты в этом запуске не устанавливались — откатывать нечего. Установленное ранее не тронуто."
+                : $"Откачено компонентов: {rollback!.Removed}" + (rollback.Failed > 0 ? $", не удалось: {rollback.Failed} (удалите на экране «Удаление»)" : string.Empty)
+                  + ". Установленное ранее не тронуто.";
+
+        if (rollback is { NotSupported.Count: > 0 })
+        {
+            text += $"\nАвтоматически не откатываются (удалите вручную при необходимости): {string.Join(", ", rollback.NotSupported)}.";
+        }
+
+        if (rollback is { NeedsReboot: true })
+        {
+            text += "\nДля завершения отката перезагрузите компьютер.";
+            RebootRequired = true;
+        }
+
+        SummaryText = text;
+        _notifications.Show(SummaryLevel == StatusLevel.Error ? ToastKind.Error : ToastKind.Warning, SummaryTitle, "Подробности — в сводке над списком шагов.");
+    }
+
     private static void ResetResult(SetupStepModel step)
     {
         step.Status = StatusLevel.NotChecked;
@@ -428,7 +481,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         step.IsExpanded = false;
     }
 
-    private void BuildSummary(TimeSpan duration)
+    private void BuildSummary(TimeSpan duration, bool notify = true)
     {
         _lastRunDuration = duration;
         var ok = Steps.Count(s => s.Status == StatusLevel.Ok);
@@ -473,6 +526,11 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         SummaryText = text;
         HasSummary = true;
 
+        if (!notify)
+        {
+            return;
+        }
+
         _notifications.Show(
             SummaryLevel == StatusLevel.Ok ? ToastKind.Success : SummaryLevel == StatusLevel.Warning ? ToastKind.Warning : ToastKind.Error,
             SummaryTitle,
@@ -488,8 +546,15 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
     }
 
-    [RelayCommand]
-    private void CancelSetup() => _cancellationTokenSource?.Cancel();
+    [RelayCommand(CanExecute = nameof(CanCancelSetup))]
+    private void CancelSetup()
+    {
+        IsCancelling = true;
+        PhaseText = "Отмена… останавливаем установщик";
+        _cancellationTokenSource?.Cancel();
+    }
+
+    private bool CanCancelSetup() => !IsCancelling;
 
     [RelayCommand]
     private void ExportReport()

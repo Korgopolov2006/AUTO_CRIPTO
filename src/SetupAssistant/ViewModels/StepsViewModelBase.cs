@@ -24,6 +24,12 @@ public abstract partial class StepsViewModelBase : ViewModelBase
     [ObservableProperty]
     private string _currentStepText = string.Empty;
 
+    /// <summary>Текст этапа вместо «Шаг N из M» (например, «Отмена…», «Откат…»); null — обычная подпись.</summary>
+    [ObservableProperty]
+    private string? _phaseText;
+
+    partial void OnPhaseTextChanged(string? value) => UpdateProgress();
+
     public int TotalStepsCount => Steps.Count;
 
     /// <summary>Подпись индикатора до запуска и после завершения.</summary>
@@ -43,7 +49,9 @@ public abstract partial class StepsViewModelBase : ViewModelBase
         OnPropertyChanged(nameof(TotalStepsCount));
 
         var active = Steps.FirstOrDefault(s => s.Status == StatusLevel.InProgress);
-        CurrentStepText = active is not null
+        CurrentStepText = PhaseText is not null
+            ? PhaseText
+            : active is not null
             ? $"Шаг {done + 1} из {total}: {active.Title}"
             : IsRunning
                 ? "Подготовка…"
