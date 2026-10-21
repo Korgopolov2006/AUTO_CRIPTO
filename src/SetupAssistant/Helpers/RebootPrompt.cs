@@ -8,6 +8,20 @@ public static class RebootPrompt
 {
     public const int DelaySeconds = 30;
 
+    private static bool _autoPrompted;
+
+    /// <summary>Окно после завершения работы показывается один раз за запуск; кнопки «Перезагрузить» в интерфейсе от этого не зависят.</summary>
+    public static bool TryMarkAutoPrompted()
+    {
+        if (_autoPrompted)
+        {
+            return false;
+        }
+
+        _autoPrompted = true;
+        return true;
+    }
+
     /// <summary>Модальное окно с предложением перезагрузки; true — пользователь выбрал «Перезагрузить сейчас».</summary>
     /// <param name="completedWork">Что завершится после перезагрузки, в родительном падеже: «настройки», «удаления».</param>
     /// <param name="note">Дополнение к тексту (например, что настройка продолжится после входа в систему).</param>
