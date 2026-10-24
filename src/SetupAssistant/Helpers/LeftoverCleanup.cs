@@ -13,6 +13,49 @@ public static class LeftoverCleanup
     /// <summary>Разделы, где даже пустая ветка может быть чужой: ни при каких настройках не трогаем.</summary>
     private static readonly string[] SharedVendors = { "Microsoft", "Classes", "Policies", "Google", "Mozilla" };
 
+    /// <summary>Защита от опасных путей: корни дисков, системные и пользовательские каталоги целиком, слишком короткие пути.</summary>
+    public static bool IsSafeToDelete(string path)
+    {
+        try
+        {
+            // Относительные пути и «C:foo» запрещены: GetFullPath привязал бы их к текущей папке процесса.
+            if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
+            {
+                return false;
+            }
+
+            var full = Path.GetFullPath(path).TrimEnd('\\');
+            var root = Path.GetPathRoot(full)?.TrimEnd('\\') ?? string.Empty;
+            if (full.Length <= root.Length)
+            {
+                return false;
+            }
+
+            var depth = full[root.Length..].Split('\\', StringSplitOptions.RemoveEmptyEntries).Length;
+            if (depth < 2)
+            {
+                return false;
+            }
+
+            var protectedFolders = new[]
+            {
+                Environment.SpecialFolder.Windows, Environment.SpecialFolder.System, Environment.SpecialFolder.ProgramFiles,
+                Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.CommonApplicationData,
+                Environment.SpecialFolder.UserProfile, Environment.SpecialFolder.ApplicationData,
+                Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolder.Desktop,
+                Environment.SpecialFolder.MyDocuments
+            }.Select(f => Environment.GetFolderPath(f).TrimEnd('\\'))
+             .Append(Path.GetTempPath().TrimEnd('\\'))
+             .Append(@"C:\Users");
+
+            return !protectedFolders.Any(p => p.Length > 0 && string.Equals(p, full, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
     /// <summary>В папке и всех её подпапках нет ни одного файла (остались только пустые каталоги).</summary>
     public static bool IsEmptyFolderTree(string directory)
     {

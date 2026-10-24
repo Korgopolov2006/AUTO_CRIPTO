@@ -6,6 +6,7 @@
         xmlns:tb="clr-namespace:H.NotifyIcon;assembly=H.NotifyIcon.Wpf"
         ui:WindowHelper.UseModernWindowStyle="True"
         Title="Помощник настройки рабочего места для электронной подписи"
+        Icon="/Resources/AppIcon.ico"
         Height="780" Width="1240"
         MinHeight="620" MinWidth="720"
         WindowStartupLocation="CenterScreen"
@@ -110,10 +111,8 @@
                       Focusable="False" />
 
         <!-- Значок в области уведомлений: открыть окно, выйти; сообщает о завершении операции, пока окно свёрнуто -->
-        <tb:TaskbarIcon x:Name="Tray" ToolTipText="{Binding TrayTooltip}" NoLeftClickDelay="True" TrayMouseDoubleClick="OnTrayDoubleClick">
-            <tb:TaskbarIcon.IconSource>
-                <tb:GeneratedIconSource Text="ЭП" Foreground="White" Background="#0F6CBD" FontSize="40" />
-            </tb:TaskbarIcon.IconSource>
+        <tb:TaskbarIcon x:Name="Tray" ToolTipText="{Binding TrayTooltip}" NoLeftClickDelay="True" TrayMouseDoubleClick="OnTrayDoubleClick"
+                        IconSource="/Resources/AppIcon.ico">
             <tb:TaskbarIcon.ContextMenu>
                 <ContextMenu>
                     <MenuItem Header="Открыть окно" Click="OnTrayOpenClick" />

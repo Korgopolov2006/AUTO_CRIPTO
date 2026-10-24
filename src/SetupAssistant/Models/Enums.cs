@@ -92,5 +92,10 @@ public enum SetupStepKind
     RemoveExtensionPolicy,
     RemovePersonalCertificates,
     RemoveLeftovers,
-    RemoveAppCache
+    RemoveAppCache,
+
+    // Полная очистка (раздел «Удаление», флажок «Полная очистка»)
+    CreateRestorePoint,
+    BackupContainers,
+    DeepCleanup
 }

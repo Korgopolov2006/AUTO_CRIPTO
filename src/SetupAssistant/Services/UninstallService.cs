@@ -11,8 +11,9 @@ namespace SetupAssistant.Services;
 
 /// <inheritdoc cref="IUninstallService"/>
 /// <remarks>
-/// Ключи, ключевые контейнеры и содержимое токена не удаляются никогда: это необратимая потеря электронной подписи.
-/// Ветки реестра КриптоПро с пользовательскими контейнерами в список очистки не входят.
+/// Содержимое токена не удаляется никогда. Ключевые контейнеры на компьютере (ветки реестра КриптоПро, папки HDIMAGE) обычное
+/// удаление не трогает; полная очистка удаляет их только после резервной копии и отдельного подтверждения пользователя
+/// (см. UninstallService.FullCleanup.cs).
 /// </remarks>
 public sealed partial class UninstallService : IUninstallService
 {
@@ -44,6 +45,10 @@ public sealed partial class UninstallService : IUninstallService
     public IReadOnlyList<SetupStepModel> BuildPlan(UninstallOptions options)
     {
         var steps = new List<SetupStepModel>();
+        if (options.FullCleanup)
+        {
+            steps.AddRange(FullCleanupPreparationSteps());
+        }
 
         foreach (var product in _configService.Current.Uninstall.Products)
         {
@@ -66,7 +71,8 @@ public sealed partial class UninstallService : IUninstallService
             Details = $"Записей, добавленных приложением: {FindPolicyEntries().Count}"
         });
 
-        if (options.RemovePersonalCertificates)
+        // При полной очистке сертификаты без ключей бесполезны: удаляются всегда (копия — в папке отчёта).
+        if (options.RemovePersonalCertificates || options.FullCleanup)
         {
             steps.Add(new SetupStepModel
             {
@@ -84,6 +90,11 @@ public sealed partial class UninstallService : IUninstallService
                       $"веток реестра {ResolveLeftoverRegistryKeys().Count + ResolveEmptyRegistryBranches().Count + ResolveOrphanProgIds().Count}"
         });
 
+        if (options.FullCleanup)
+        {
+            steps.Add(DeepCleanupStep());
+        }
+
         steps.Add(new SetupStepModel
         {
             Kind = SetupStepKind.RemoveAppCache,
@@ -98,7 +109,7 @@ public sealed partial class UninstallService : IUninstallService
         step.Kind == SetupStepKind.UninstallProduct
         && _configService.Current.Uninstall.Products.Any(p => p.Name == step.Key && p.Group == "Kontinent");
 
-    public async Task RunAsync(IReadOnlyList<SetupStepModel> steps, IProgress<SetupStepModel>? progress, CancellationToken cancellationToken = default)
+    public async Task RunAsync(IReadOnlyList<SetupStepModel> steps, IProgress<SetupStepModel>? progress, CancellationToken cancellationToken = default, FullCleanupSession? session = null)
     {
         foreach (var step in steps)
         {
@@ -135,6 +146,15 @@ public sealed partial class UninstallService : IUninstallService
                         break;
                     case SetupStepKind.RemoveAppCache:
                         RemoveAppCache(step);
+                        break;
+                    case SetupStepKind.CreateRestorePoint:
+                        await CreateRestorePointAsync(step);
+                        break;
+                    case SetupStepKind.BackupContainers:
+                        await BackupContainersAsync(step, session ?? throw new InvalidOperationException("Нет состояния полной очистки"));
+                        break;
+                    case SetupStepKind.DeepCleanup:
+                        await DeepCleanupAsync(step, steps, session ?? throw new InvalidOperationException("Нет состояния полной очистки"));
                         break;
                 }
             }
@@ -405,7 +425,7 @@ public sealed partial class UninstallService : IUninstallService
         foreach (var pattern in definition.DataPaths)
         {
             var path = Environment.ExpandEnvironmentVariables(pattern);
-            if (!IsSafeToDelete(path) || !Directory.Exists(path))
+            if (!LeftoverCleanup.IsSafeToDelete(path) || !Directory.Exists(path))
             {
                 continue;
             }
@@ -419,7 +439,7 @@ public sealed partial class UninstallService : IUninstallService
                 // Родительскую папку (например, «Security Code») убираем только если в ней ничего не осталось: чужие файлы
                 // или папки (Secret Net Studio и т. п.) не дают её удалить. Без рекурсии — пустую папку и так не тронет лишнего.
                 var parent = Path.GetDirectoryName(path);
-                if (parent is not null && IsSafeToDelete(parent) && Directory.Exists(parent) && !Directory.EnumerateFileSystemEntries(parent).Any())
+                if (parent is not null && LeftoverCleanup.IsSafeToDelete(parent) && Directory.Exists(parent) && !Directory.EnumerateFileSystemEntries(parent).Any())
                 {
                     Directory.Delete(parent);
                     _logger.Info($"{Action}: {definition.Name}", $"Удалена пустая родительская папка: {parent}");
@@ -666,7 +686,7 @@ public sealed partial class UninstallService : IUninstallService
         {
             foreach (var path in ExpandPattern(Environment.ExpandEnvironmentVariables(pattern)))
             {
-                if (IsSafeToDelete(path) && !found.Contains(path, StringComparer.OrdinalIgnoreCase))
+                if (LeftoverCleanup.IsSafeToDelete(path) && !found.Contains(path, StringComparer.OrdinalIgnoreCase))
                 {
                     found.Add(path);
                 }
@@ -689,49 +709,6 @@ public sealed partial class UninstallService : IUninstallService
         }
 
         return Directory.Exists(path) ? new[] { path } : Enumerable.Empty<string>();
-    }
-
-    /// <summary>Защита от опасных путей: корни дисков, системные и пользовательские каталоги целиком, слишком короткие пути.</summary>
-    internal static bool IsSafeToDelete(string path)
-    {
-        try
-        {
-            // Относительные пути и «C:foo» запрещены: GetFullPath привязал бы их к текущей папке процесса.
-            if (string.IsNullOrWhiteSpace(path) || !Path.IsPathFullyQualified(path))
-            {
-                return false;
-            }
-
-            var full = Path.GetFullPath(path).TrimEnd('\\');
-            var root = Path.GetPathRoot(full)?.TrimEnd('\\') ?? string.Empty;
-            if (full.Length <= root.Length)
-            {
-                return false;
-            }
-
-            var depth = full[root.Length..].Split('\\', StringSplitOptions.RemoveEmptyEntries).Length;
-            if (depth < 2)
-            {
-                return false;
-            }
-
-            var protectedFolders = new[]
-            {
-                Environment.SpecialFolder.Windows, Environment.SpecialFolder.System, Environment.SpecialFolder.ProgramFiles,
-                Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.CommonApplicationData,
-                Environment.SpecialFolder.UserProfile, Environment.SpecialFolder.ApplicationData,
-                Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolder.Desktop,
-                Environment.SpecialFolder.MyDocuments
-            }.Select(f => Environment.GetFolderPath(f).TrimEnd('\\'))
-             .Append(Path.GetTempPath().TrimEnd('\\'))
-             .Append(@"C:\Users");
-
-            return !protectedFolders.Any(p => p.Length > 0 && string.Equals(p, full, StringComparison.OrdinalIgnoreCase));
-        }
-        catch (Exception)
-        {
-            return false;
-        }
     }
 
     private List<(RegistryKey Hive, string SubKey)> ResolveLeftoverRegistryKeys()
@@ -793,7 +770,7 @@ public sealed partial class UninstallService : IUninstallService
     private List<string> ResolveEmptyFolders() =>
         _configService.Current.Uninstall.EmptyLeftoverFolders
             .Select(Environment.ExpandEnvironmentVariables)
-            .Where(path => IsSafeToDelete(path) && LeftoverCleanup.IsEmptyFolderTree(path))
+            .Where(path => LeftoverCleanup.IsSafeToDelete(path) && LeftoverCleanup.IsEmptyFolderTree(path))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -963,7 +940,7 @@ public sealed partial class UninstallService : IUninstallService
 
         try
         {
-            if (IsSafeToDelete(cache) && Directory.Exists(cache))
+            if (LeftoverCleanup.IsSafeToDelete(cache) && Directory.Exists(cache))
             {
                 Directory.Delete(cache, recursive: true);
             }

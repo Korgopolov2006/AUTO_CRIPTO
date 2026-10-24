@@ -13,7 +13,10 @@ public sealed record CommandLineOptions(
     string? SupportBundlePath,
     string? Error,
     IReadOnlyList<string>? UpdaterArgs = null,
-    bool KontinentOnly = false)
+    bool KontinentOnly = false,
+    bool Full = false,
+    bool DeleteContainers = false,
+    string? CleanupPreviewPath = null)
 {
     public const int ExitInvalidArguments = 4;
 
@@ -21,7 +24,8 @@ public sealed record CommandLineOptions(
     public const string UpdateDistributionsMode = "--update-distributions";
 
     /// <summary>Работа без окна: результат — код возврата, журнал и (по желанию) отчёт.</summary>
-    public bool IsHeadless => Check || Silent || Uninstall || Help || SupportBundlePath is not null || Error is not null || UpdaterArgs is not null;
+    public bool IsHeadless => Check || Silent || Uninstall || Help || SupportBundlePath is not null || Error is not null || UpdaterArgs is not null
+                              || CleanupPreviewPath is not null;
 
     public static CommandLineOptions Parse(IReadOnlyList<string> args)
     {
@@ -32,7 +36,8 @@ public sealed record CommandLineOptions(
         }
 
         bool check = false, silent = false, uninstall = false, resume = false, reinstall = false, withToken = false, help = false, kontinentOnly = false;
-        string? report = null, supportBundle = null, error = null;
+        bool full = false, deleteContainers = false;
+        string? report = null, supportBundle = null, error = null, cleanupPreview = null;
 
         for (var i = 0; i < args.Count; i++)
         {
@@ -42,6 +47,19 @@ public sealed record CommandLineOptions(
                 case "--silent": silent = true; break;
                 case "--uninstall": uninstall = true; break;
                 case "--kontinent-only": kontinentOnly = true; break;
+                case "--full": full = true; break;
+                case "--delete-containers": deleteContainers = true; break;
+                case "--cleanup-preview":
+                    if (i + 1 < args.Count)
+                    {
+                        cleanupPreview = args[++i];
+                    }
+                    else
+                    {
+                        error = "После --cleanup-preview нужно указать путь к файлу .txt.";
+                    }
+
+                    break;
                 case "--resume": resume = true; break;
                 case "--reinstall": reinstall = true; break;
                 case "--with-token": withToken = true; break;
@@ -79,7 +97,18 @@ public sealed record CommandLineOptions(
             error = "Режимы --check, --silent и --uninstall нельзя указывать одновременно.";
         }
 
-        return new CommandLineOptions(check, silent, uninstall, resume, reinstall, withToken, help, report, supportBundle, error, null, kontinentOnly);
+        if (error is null && full && (!uninstall || kontinentOnly))
+        {
+            error = "--full указывается вместе с --uninstall (и без --kontinent-only).";
+        }
+
+        if (error is null && deleteContainers && !full)
+        {
+            error = "--delete-containers указывается только вместе с --uninstall --full.";
+        }
+
+        return new CommandLineOptions(check, silent, uninstall, resume, reinstall, withToken, help, report, supportBundle, error, null, kontinentOnly,
+            full, deleteContainers, cleanupPreview);
     }
 
     public const string Usage =
@@ -93,6 +122,12 @@ public sealed record CommandLineOptions(
           --silent               установить и настроить всё, что нужно, без вопросов
           --uninstall            удалить компоненты, установленные мастером (Chromium GOST не удаляется), без вопросов
           --kontinent-only       (с --uninstall) удалить только Континент-АП и КБ CSP; КриптоПро и плагины не трогаются
+          --full                 (с --uninstall) полная очистка: ещё и все следы СКЗИ в реестре и на диске; перед этим
+                                 точка восстановления и резервная копия ключевых контейнеров в папке Logs\FullCleanup-…
+          --delete-containers    (с --uninstall --full) удалить и ключевые контейнеры — только после успешной резервной копии;
+                                 без ключа контейнеры остаются на компьютере. Содержимое токенов не затрагивается
+          --cleanup-preview <файл.txt>
+                                 записать, что удалит полная очистка, ничего не меняя
           --update-distributions <папка> [--check] [--prune] [--prune-only]
                                  обновить расширения и дистрибутивы в папке приложения (нужен интернет); папка — с Config\Config.json
         Дополнительно:

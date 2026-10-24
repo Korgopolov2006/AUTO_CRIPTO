@@ -11,6 +11,9 @@
     <AssemblyName>SetupAssistant</AssemblyName>
     <ApplicationManifest>App_Manifest\app.manifest</ApplicationManifest>
 
+    <!-- Значок exe (проводник, панель задач, Alt+Tab). Рисуется tools\Make-AppIcon.ps1; тот же файл — значок окна и трея. -->
+    <ApplicationIcon>Resources\AppIcon.ico</ApplicationIcon>
+
     <!-- Publish settings: single self-contained win-x64 executable -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
@@ -20,7 +23,7 @@
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
 
     <!-- Единственный источник номера версии (SemVer); изменения по версиям описаны в CHANGELOG.md. SDK добавляет хеш коммита. -->
-    <Version>1.6.4</Version>
+    <Version>1.7.0</Version>
     <Product>Помощник настройки рабочего места для электронной подписи</Product>
     <Company>SetupAssistant</Company>
     <Authors>SetupAssistant</Authors>
@@ -38,6 +41,10 @@
     <PackageReference Include="Pkcs11Interop" Version="5.1.2" />
     <PackageReference Include="QuestPDF" Version="2024.10.3" />
     <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\AppIcon.ico" />
   </ItemGroup>
 
   <ItemGroup>

@@ -52,9 +52,14 @@ public sealed class HeadlessRunner
                 return await ExtensionUpdater.UpdaterCli.RunAsync(options.UpdaterArgs.ToArray(), AppContext.BaseDirectory, standalone: false);
             }
 
+            if (options.CleanupPreviewPath is not null)
+            {
+                return CleanupPreview(options.CleanupPreviewPath);
+            }
+
             if (options.Uninstall)
             {
-                return await UninstallAsync(options.KontinentOnly);
+                return await UninstallAsync(options.KontinentOnly, options.Full, options.DeleteContainers);
             }
 
             return options.Check ? await CheckAsync(options) : await SilentAsync(options);
@@ -154,12 +159,20 @@ public sealed class HeadlessRunner
     }
 
     /// <summary>Откат настройки без окна: те же шаги, что на экране «Удаление»; личные сертификаты не удаляются.</summary>
-    private async Task<int> UninstallAsync(bool kontinentOnly)
+    private int CleanupPreview(string path)
     {
-        _services.GetRequiredService<ILoggingService>().Info("Тихое удаление", "Запуск без окна (--uninstall)");
+        var full = Path.GetFullPath(path);
+        File.WriteAllText(full, _services.GetRequiredService<IUninstallService>().PreviewFullCleanup(), new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        Print($"Предпросмотр полной очистки сохранён: {full}");
+        return 0;
+    }
+
+    private async Task<int> UninstallAsync(bool kontinentOnly, bool full, bool deleteContainers)
+    {
+        _services.GetRequiredService<ILoggingService>().Info("Тихое удаление", full ? "Запуск без окна (--uninstall --full)" : "Запуск без окна (--uninstall)");
 
         var service = _services.GetRequiredService<IUninstallService>();
-        IReadOnlyList<SetupStepModel> steps = service.BuildPlan(new UninstallOptions(RemovePersonalCertificates: false));
+        IReadOnlyList<SetupStepModel> steps = service.BuildPlan(new UninstallOptions(RemovePersonalCertificates: false, FullCleanup: full));
         if (kontinentOnly)
         {
             steps = steps.Where(s => service.IsKontinentStep(s)).ToList();
@@ -179,7 +192,34 @@ public sealed class HeadlessRunner
         });
 
         var started = DateTime.Now;
-        await service.RunAsync(steps, progress);
+        if (full)
+        {
+            // Сначала точка восстановления и резервная копия; контейнеры удаляются, только если указан --delete-containers и копия удалась.
+            var session = service.CreateFullCleanupSession(includeKontinent: true);
+            var preparation = steps.Where(s => s.Kind is SetupStepKind.CreateRestorePoint or SetupStepKind.BackupContainers).ToList();
+            await service.RunAsync(preparation, progress, session: session);
+
+            session.DeleteContainers = deleteContainers && session.ContainersBackedUp && session.Containers.Count > 0;
+            if (session.Containers.Count > 0)
+            {
+                Print(session.DeleteContainers
+                    ? $"Ключевые контейнеры ({session.Containers.Count}) будут удалены: резервная копия сделана."
+                    : $"Ключевые контейнеры ({session.Containers.Count}) остаются на компьютере" +
+                      (deleteContainers ? ": резервная копия не удалась." : " (удалить: --delete-containers)."));
+            }
+
+            await service.RunAsync(steps.Except(preparation).ToList(), progress, session: session);
+            Print($"Папка отчёта (резервные копии и report.txt): {session.BackupDirectory}");
+            if (session.ContinueAfterReboot)
+            {
+                Print("Перезагрузите компьютер и запустите команду ещё раз: очистка доделает то, что Windows удаляет при перезагрузке.");
+            }
+        }
+        else
+        {
+            await service.RunAsync(steps, progress);
+        }
+
         var duration = DateTime.Now - started;
 
         var errors = steps.Count(s => s.Status == StatusLevel.Error);
