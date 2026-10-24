@@ -4,7 +4,11 @@ namespace SetupAssistant.Services.Interfaces;
 
 /// <summary>Результат выполнения тихой установки.</summary>
 /// <param name="RebootBeforeRetry">Установка отклонена: Windows ждёт перезагрузки (например, после удаления прошлой версии). Сначала перезагрузка, потом повтор.</param>
-public sealed record InstallResult(bool Success, int ExitCode, string? ErrorMessage, bool RebootBeforeRetry = false)
+/// <param name="InstallerHung">
+/// Установщик завис и отпустит Windows Installer только при перезагрузке (КриптоПро на драйвере CProCtrl). Процесс оставлен работать:
+/// принудительное завершение не помогает, а следующие установщики встали бы в очередь за ним.
+/// </param>
+public sealed record InstallResult(bool Success, int ExitCode, string? ErrorMessage, bool RebootBeforeRetry = false, bool InstallerHung = false)
 {
     /// <summary>Установка прошла, но для завершения требуется перезагрузка (код 3010).</summary>
     public bool RebootRequired => ExitCode == 3010;

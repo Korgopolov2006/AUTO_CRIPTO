@@ -160,11 +160,17 @@ public sealed class PreflightService : IPreflightService
             : new PreflightCheck(name, StatusLevel.Ok, "Ожидающей перезагрузки нет");
     }
 
-    private static PreflightCheck CheckInstallerBusy()
+    private PreflightCheck CheckInstallerBusy()
     {
         const string name = "Установщик Windows";
-        return WindowsInstallerState.IsBusy()
-            ? new PreflightCheck(name, StatusLevel.Warning, "Сейчас выполняется другая установка (возможно, незавершённая после отмены). Помощник дождётся её окончания перед установкой каждого компонента")
-            : new PreflightCheck(name, StatusLevel.Ok, "Другие установки не выполняются");
+        if (!WindowsInstallerState.IsBusy())
+        {
+            return new PreflightCheck(name, StatusLevel.Ok, "Другие установки не выполняются");
+        }
+
+        // Операцию КриптоПро, зависшую на драйвере, не дождаться: без перезагрузки каждый следующий установщик встанет за ней.
+        return CryptoProDriverHang.FindStuckLog(_configService.ResolvePath(_configService.Current.Logging.LogDirectory)) is { } stuckLog
+            ? new PreflightCheck(name, StatusLevel.Error, CryptoProDriverHang.BusyMessage(stuckLog.LastWriteTime))
+            : new PreflightCheck(name, StatusLevel.Warning, "Сейчас выполняется другая установка (возможно, незавершённая после отмены). Помощник дождётся её окончания перед установкой каждого компонента");
     }
 }
