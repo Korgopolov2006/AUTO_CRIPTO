@@ -214,6 +214,7 @@
       "HKLM\\SOFTWARE\\Crypto Pro",
       "HKLM\\SOFTWARE\\WOW6432Node\\Crypto Pro",
       "HKCU\\SOFTWARE\\Crypto Pro",
+      "HKCU\\SOFTWARE\\Security Code",
       "HKLM\\SOFTWARE\\SecurityCode",
       "HKLM\\SOFTWARE\\WOW6432Node\\SecurityCode"
     ],

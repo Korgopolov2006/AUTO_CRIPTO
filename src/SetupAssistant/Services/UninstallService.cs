@@ -929,6 +929,13 @@ public sealed partial class UninstallService : IUninstallService
             }
         }
 
+        // Службу-драйвер КриптоПро убираем и при обычном удалении: запись службы без файла драйвера иначе остаётся в реестре.
+        if (!cryptoProOnly && RemoveStaleDriver("CProCtrl"))
+        {
+            step.NeedsReboot = true;
+            keys++;
+        }
+
         step.Status = problems.Count == 0 ? StatusLevel.Ok : StatusLevel.Warning;
         step.Details = $"Удалено папок: {folders}, веток реестра: {keys}"
                        + (problems.Count == 0 ? string.Empty : $". Не удалось (возможно, заняты): {string.Join("; ", problems)}");
