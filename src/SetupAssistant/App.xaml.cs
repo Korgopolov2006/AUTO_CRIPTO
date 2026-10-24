@@ -61,6 +61,14 @@ public partial class App : Application
     {
         try
         {
+            // Незавершённая полная очистка важнее: она могла быть запущена и после настройки.
+            if (Helpers.ResumeRegistration.ReadCleanup() is { } cleanup)
+            {
+                _serviceProvider!.GetRequiredService<INavigationService>().NavigateTo<UninstallViewModel>();
+                await _serviceProvider!.GetRequiredService<UninstallViewModel>().ResumeFullCleanupAsync(cleanup);
+                return;
+            }
+
             _serviceProvider!.GetRequiredService<INavigationService>().NavigateTo<SetupWizardViewModel>();
             await _serviceProvider!.GetRequiredService<SetupWizardViewModel>().ResumeAfterRebootAsync();
         }

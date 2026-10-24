@@ -14,10 +14,17 @@
         <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Margin="0,0,0,16">
             <StackPanel>
                 <TextBlock TextWrapping="Wrap"
-                           Text="Удаляются установленные мастером программы (в обратном порядке), политика установки расширений, остаточные файлы и кэш приложения. Ключи, ключевые контейнеры и содержимое токена не удаляются." />
-                <CheckBox Margin="0,12,0,0" IsChecked="{Binding RemovePersonalCertificates}">
+                           Text="Удаляются установленные мастером программы (в обратном порядке), политика установки расширений, остаточные файлы и кэш приложения. В обычном режиме ключи, ключевые контейнеры и содержимое токена не удаляются." />
+                <CheckBox Margin="0,12,0,0" IsChecked="{Binding RemovePersonalCertificates}" IsEnabled="{Binding CanChooseCertificates}">
                     <TextBlock TextWrapping="Wrap"
                                Text="Также удалить из хранилища «Личное» сертификаты, привязанные к ключам КриптоПро (вернуть их можно повторной настройкой с токена)" />
+                </CheckBox>
+                <CheckBox Margin="0,10,0,0" IsChecked="{Binding FullCleanup}" IsEnabled="{Binding IsRunning, Converter={StaticResource InverseBool}}">
+                    <StackPanel>
+                        <TextBlock Text="Полная очистка ПК от СКЗИ" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Style="{StaticResource MutedTextStyle}" FontSize="13" TextWrapping="Wrap" Margin="0,2,0,0"
+                                   Text="Кроме программ удаляются все их следы в Windows: криптопровайдеры, CNG и TLS, пакеты LSA, драйверы и службы, COM, записи браузеров, папки. Перед этим — точка восстановления и резервная копия ключевых контейнеров в папке отчёта; удалять ли сами контейнеры, приложение спросит отдельно. Содержимое токенов не затрагивается." />
+                    </StackPanel>
                 </CheckBox>
             </StackPanel>
         </Border>
@@ -37,11 +44,26 @@
                           ContentTemplate="{StaticResource StepsProgressTemplate}" />
 
         <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Margin="0,0,0,16"
+                Visibility="{Binding HasReportDirectory, Converter={StaticResource BoolToVisibility}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Открыть папку" VerticalAlignment="Center" Margin="12,0,0,0"
+                        Command="{Binding OpenReportDirectoryCommand}" />
+                <StackPanel>
+                    <TextBlock Text="Папка отчёта полной очистки" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Style="{StaticResource MutedTextStyle}" FontSize="13" TextWrapping="Wrap" Margin="0,2,0,0"
+                               Text="{Binding ReportDirectory}" />
+                    <TextBlock Style="{StaticResource MutedTextStyle}" FontSize="13" TextWrapping="Wrap" Margin="0,2,0,0"
+                               Text="Резервные копии реестра, ключевых контейнеров и сертификатов, report.txt и README.txt с порядком восстановления. В копии закрытые ключи — храните папку как сами ключи." />
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <Border DockPanel.Dock="Top" Style="{StaticResource CardStyle}" Margin="0,0,0,16"
                 Visibility="{Binding RebootRequired, Converter={StaticResource BoolToVisibility}}">
             <StackPanel>
                 <TextBlock Text="Требуется перезагрузка компьютера" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
                 <TextBlock Style="{StaticResource MutedTextStyle}" FontSize="13" TextWrapping="Wrap" Margin="0,4,0,0"
-                           Text="Компоненты уже удалены, но Windows завершает удаление и убирает программы из списка только после перезагрузки. Не запускайте установку заново, пока не перезагрузите компьютер." />
+                           Text="Компоненты уже удалены, но Windows завершает удаление и убирает программы из списка только после перезагрузки. Не запускайте установку заново, пока не перезагрузите компьютер. Если идёт полная очистка, после входа в систему приложение запустится само и завершит её." />
                 <Button Content="Перезагрузить сейчас" Style="{StaticResource AccentButtonStyle}" Margin="0,14,0,0"
                         HorizontalAlignment="Left" Command="{Binding RestartNowCommand}" />
             </StackPanel>

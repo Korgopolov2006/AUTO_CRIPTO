@@ -104,6 +104,11 @@ public static class HelpAdvisor
 
         var text = details ?? string.Empty;
 
+        if (kind is SetupStepKind.CreateRestorePoint or SetupStepKind.BackupContainers or SetupStepKind.DeepCleanup)
+        {
+            return ForFullCleanupStep(kind, text);
+        }
+
         if (text.Contains("1618", StringComparison.Ordinal))
         {
             return "Сейчас выполняется другая установка. Дождитесь её завершения (или перезагрузите компьютер) и нажмите «Повторить».";
@@ -156,6 +161,27 @@ public static class HelpAdvisor
             _ => status == StatusLevel.Error ? "Нажмите «Повторить». Если ошибка повторяется, посмотрите журнал или соберите пакет дляподдержки (Настройки)." : null
         };
     }
+
+    private static string ForFullCleanupStep(SetupStepKind kind, string text) => kind switch
+    {
+        SetupStepKind.CreateRestorePoint =>
+            "Точка восстановления не обязательна: удаляемые разделы реестра всё равно сохраняются в папке отчёта. " +
+            "Чтобы она создавалась: «Создание точки восстановления» в поиске Windows → диск C: → «Настроить» → «Включить защиту системы».",
+        SetupStepKind.BackupContainers =>
+            "Контейнеры остаются на компьютере. Проверьте свободное место и доступ к папке Logs рядом с приложением, " +
+            "затем запустите полную очистку снова.",
+        _ when text.Contains("после перезагрузки", StringComparison.OrdinalIgnoreCase) =>
+            "Перезагрузите компьютер: после входа в систему приложение запустится само и завершит очистку.",
+        _ when text.Contains("другие программы", StringComparison.OrdinalIgnoreCase) =>
+            "Удалите перечисленные программы в «Параметрах Windows → Приложения» и снова запустите полную очистку: " +
+            "их следы общие с удаляемыми, и без этого они перестали бы работать.",
+        _ when text.Contains("не все программы", StringComparison.OrdinalIgnoreCase) || text.Contains("установленными", StringComparison.OrdinalIgnoreCase) =>
+            "Сначала удалите программы (шаги выше), при необходимости перезагрузите компьютер, затем запустите полную очистку снова.",
+        _ when text.Contains("вручную в браузере", StringComparison.OrdinalIgnoreCase) =>
+            "Эти расширения браузер хранит в своём профиле, поэтому очистка Windows их не удаляет. Откройте в браузере chrome://extensions " +
+            "(в Яндекс.Браузере — browser://extensions) и нажмите «Удалить» у каждого. Полный список и прочие итоги — в report.txt.",
+        _ => "Что не удалилось и почему — в report.txt (кнопка «Открыть папку»). Обычно помогает перезагрузка и повторный запуск полной очистки."
+    };
 
     /// <summary>Совет по этапу теста подписи, завершившемуся ошибкой.</summary>
     public static string? ForSignatureStage(string stage, string error)
