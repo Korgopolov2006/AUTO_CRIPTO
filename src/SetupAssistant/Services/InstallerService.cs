@@ -158,7 +158,7 @@ public sealed class InstallerService : IInstallerService
         catch (OperationCanceledException)
         {
             // Отмена: установщик нельзя оставлять работать в фоне, иначе он продолжит ставить компонент уже после «Отмены».
-            await StopAfterCancelAsync(process, actionLabel, processName, processName.Equals("msiexec.exe", StringComparison.OrdinalIgnoreCase));
+            await StopAfterCancelAsync(process, actionLabel, processName);
             throw;
         }
     }
@@ -235,10 +235,10 @@ public sealed class InstallerService : IInstallerService
     private static readonly TimeSpan InstallerReleaseWait = TimeSpan.FromSeconds(45);
 
     /// <summary>
-    /// Останавливает процесс установщика с дочерними (в том числе завис на вызове диспетчера служб) и для MSI дожидается, пока
+    /// Останавливает процесс установщика с дочерними (в том числе завис на вызове диспетчера служб) и дожидается, пока
     /// Windows Installer освободится; если он так и остался занятым, завершает оставшиеся процессы msiexec.exe.
     /// </summary>
-    private async Task StopAfterCancelAsync(Process process, string actionLabel, string processName, bool isMsi)
+    private async Task StopAfterCancelAsync(Process process, string actionLabel, string processName)
     {
         var action = $"{actionLabel} ({processName})";
         try
@@ -255,11 +255,8 @@ public sealed class InstallerService : IInstallerService
             _logger.Warning(action, "Не удалось завершить процесс установщика", ex.Message);
         }
 
-        if (!isMsi)
-        {
-            return;
-        }
-
+        // Exe-обёртка (например cadesplugin.exe) запускает MSI через службу Windows Installer: после её остановки MSI доустанавливается сам,
+        // поэтому ждём освобождения Windows Installer для любого установщика, иначе откат отработает раньше достройки.
         var stopwatch = Stopwatch.StartNew();
         while (WindowsInstallerState.IsBusy() && stopwatch.Elapsed < InstallerReleaseWait)
         {
