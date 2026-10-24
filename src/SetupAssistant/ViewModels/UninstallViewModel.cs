@@ -170,7 +170,7 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
         }
 
         // Окно показываем после того, как прогресс снят: удаление закончено, осталось перезагрузить компьютер.
-        if (askToRestart)
+        if (askToRestart && RebootPrompt.TryMarkAutoPrompted())
         {
             RestartNow();
         }
