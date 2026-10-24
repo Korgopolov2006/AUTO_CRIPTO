@@ -98,17 +98,19 @@ MSI запускается с `MSIRESTARTMANAGERCONTROL=Disable`: приложе
 
 ## Единый exe
 
-`tools\Build-SingleExe.ps1 [-OutputDir ...]` (PowerShell 7; если целевой exe запущен, укажите другую папку) собирает `dist\SetupAssistant-Full.exe`: публикует приложение и
+`tools\Build-SingleExe.ps1 [-OutputDir ...]` (PowerShell 7) собирает `dist\SetupAssistant-Full-<версия>.exe` (версия — `<Version>` из
+`SetupAssistant.csproj`, например `SetupAssistant-Full-1.6.4.exe`) и удаляет из папки прежние `SetupAssistant-Full*.exe`:
+там всегда лежит только последняя версия (запущенную старую удалить нельзя — сборка предупредит). Скрипт публикует приложение и
 дописывает в конец exe архив с `Config`, `Appendices` и `LatoFont` (подвал `SAPAYLD1` + длина архива).
 Приложение читает эти данные само и **распаковывает файл только в момент, когда он нужен** (в
 `%ProgramData%\SetupAssistant\Payload\<id сборки>`; кэш предыдущих сборок удаляется при запуске), поэтому
 запуск быстрый, а Chromium (120 МБ) не распаковывается, если скачался свежий. Файл `Config\Config.json` или
 дистрибутив рядом с exe имеют приоритет над встроенными: так можно подменить конфиг без пересборки. Журнал
-пишется в `Logs` рядом с exe. Подписывать нужно готовый `SetupAssistant-Full.exe` (данные находятся и в
+пишется в `Logs` рядом с exe. Подписывать нужно готовый `SetupAssistant-Full-<версия>.exe` (данные находятся и в
 подписанном файле).
 
-Результат сборки — один файл `SetupAssistant-Full.exe`: в нём и мастер настройки, и обновление дистрибутивов.
-Обновить единый exe: на компьютере с интернетом запустить `SetupAssistant-Full.exe --update-distributions src\SetupAssistant`
+Результат сборки — один файл `SetupAssistant-Full-<версия>.exe`: в нём и мастер настройки, и обновление дистрибутивов.
+Обновить единый exe: на компьютере с интернетом запустить `SetupAssistant-Full-<версия>.exe --update-distributions src\SetupAssistant`
 (от имени администратора; обновит `Config.json` и файлы в `Appendices`), затем `tools\Build-SingleExe.ps1`.
 
 ## Обновление расширений и дистрибутивов

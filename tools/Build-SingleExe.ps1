@@ -1,7 +1,7 @@
 #requires -Version 7
 <#
 .SYNOPSIS
-    Собирает единый SetupAssistant-Full.exe: приложение + конфиг и дистрибутивы внутри одного файла.
+    Собирает единый SetupAssistant-Full-<версия>.exe: приложение + конфиг и дистрибутивы внутри одного файла.
 
 .DESCRIPTION
     1. Публикует SetupAssistant и вспомогательный ExtensionUpdater (Release, автономные, без установки .NET).
@@ -10,8 +10,10 @@
        вместе с подвалом «SAPAYLD1» + длина архива. Приложение читает эти данные само и распаковывает
        нужный файл в %ProgramData%\SetupAssistant\Payload только в момент, когда он понадобился.
     Файл Config\Config.json или дистрибутив рядом с exe имеют приоритет над встроенными.
-    Если exe нужно подписать, подписывайте готовый SetupAssistant-Full.exe: приложение находит данные и в подписанном файле.
-    Результат — единственный файл SetupAssistant-Full.exe: и мастер настройки, и обновление дистрибутивов (--update-distributions).
+    Если exe нужно подписать, подписывайте готовый exe: приложение находит данные и в подписанном файле.
+    Результат — единственный файл SetupAssistant-Full-<версия>.exe (версия из <Version> в SetupAssistant.csproj): и мастер
+    настройки, и обновление дистрибутивов (--update-distributions). После сборки прежние SetupAssistant-Full*.exe в выходной
+    папке удаляются, чтобы там лежала только последняя версия; запущенную старую версию удалить не получится — будет предупреждение.
 
 .PARAMETER OutputDir
     Куда положить результат (по умолчанию папка dist рядом со скриптом, в git она не попадает).
@@ -54,8 +56,11 @@ try {
 
     Write-Host '4/4 Сборка единого exe...'
     New-Item -ItemType Directory -Force $OutputDir | Out-Null
-    $out = Join-Path (Resolve-Path $OutputDir).Path 'SetupAssistant-Full.exe'
-    Copy-Item "$app\SetupAssistant.exe" $out -Force
+    $version = (Select-String -Path "$root\src\SetupAssistant\SetupAssistant.csproj" -Pattern '<Version>([^<]+)</Version>').Matches[0].Groups[1].Value
+    $outDir = (Resolve-Path $OutputDir).Path
+    $out = Join-Path $outDir "SetupAssistant-Full-$version.exe"
+    try { Copy-Item "$app\SetupAssistant.exe" $out -Force }
+    catch { throw "Не удалось записать $out — эта версия сейчас запущена? Закройте её и повторите сборку. ($($_.Exception.Message))" }
 
     $zipLength = (Get-Item $zip).Length
     $footer = [byte[]]::new(16)
@@ -70,9 +75,18 @@ try {
     }
     finally { $stream.Dispose() }
 
-    # Результат — один файл: обновление дистрибутивов встроено в него (SetupAssistant-Full.exe --update-distributions <папка>),
+    # Результат — один файл: обновление дистрибутивов встроено в него (SetupAssistant-Full-<версия>.exe --update-distributions <папка>),
     # а ExtensionUpdater.exe нужен только этому скрипту для очистки и в выходную папку не попадает.
-    Get-ChildItem (Split-Path $out) -Filter 'ExtensionUpdater.exe' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    Get-ChildItem $outDir -Filter 'ExtensionUpdater.exe' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+
+    # Новая версия заменяет прежние: в папке остаётся только последний exe.
+    foreach ($old in Get-ChildItem $outDir -Filter 'SetupAssistant-Full*.exe' | Where-Object FullName -ne $out) {
+        try {
+            Remove-Item $old.FullName -Force
+            Write-Host "Удалена прежняя версия: $($old.Name)"
+        }
+        catch { Write-Warning "Не удалось удалить прежнюю версию $($old.Name): файл занят (запущен?). Закройте её и удалите вручную." }
+    }
 
     $size = (Get-Item $out).Length / 1MB
     Write-Host ('Готово: {0}  ({1:N0} МБ, внутри {2:N0} МБ данных)' -f $out, $size, ($zipLength / 1MB)) -ForegroundColor Green
