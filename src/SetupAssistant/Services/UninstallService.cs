@@ -109,7 +109,15 @@ public sealed partial class UninstallService : IUninstallService
         step.Kind == SetupStepKind.UninstallProduct
         && _configService.Current.Uninstall.Products.Any(p => p.Name == step.Key && p.Group == "Kontinent");
 
-    public async Task RunAsync(IReadOnlyList<SetupStepModel> steps, IProgress<SetupStepModel>? progress, CancellationToken cancellationToken = default, FullCleanupSession? session = null)
+    /// <remarks>
+    /// Работа идёт в потоке пула: шаги читают реестр, удаляют папки и ждут процессы, а вызывающий поток — интерфейс. Токен в
+    /// <see cref="Task.Run(Func{Task})"/> не передаётся: уже отменённый токен должен дойти до шага и оформиться как отмена.
+    /// Свойства шагов меняются из пула — привязки WPF к простым свойствам сами переходят в поток интерфейса.
+    /// </remarks>
+    public Task RunAsync(IReadOnlyList<SetupStepModel> steps, IProgress<SetupStepModel>? progress, CancellationToken cancellationToken = default, FullCleanupSession? session = null) =>
+        Task.Run(() => RunStepsAsync(steps, progress, cancellationToken, session));
+
+    private async Task RunStepsAsync(IReadOnlyList<SetupStepModel> steps, IProgress<SetupStepModel>? progress, CancellationToken cancellationToken, FullCleanupSession? session)
     {
         foreach (var step in steps)
         {
@@ -179,7 +187,11 @@ public sealed partial class UninstallService : IUninstallService
         }
     }
 
-    public async Task<RollbackResult> RollbackProductsAsync(IReadOnlyCollection<string> productNames, bool cleanCryptoProRemains, IProgress<string>? status, CancellationToken cancellationToken = default)
+    /// <remarks>Откат идёт сразу после «Отмены», из продолжения в потоке интерфейса, — поэтому, как и <see cref="RunAsync"/>, целиком в потоке пула.</remarks>
+    public Task<RollbackResult> RollbackProductsAsync(IReadOnlyCollection<string> productNames, bool cleanCryptoProRemains, IProgress<string>? status, CancellationToken cancellationToken = default) =>
+        Task.Run(() => RollbackAsync(productNames, cleanCryptoProRemains, status, cancellationToken));
+
+    private async Task<RollbackResult> RollbackAsync(IReadOnlyCollection<string> productNames, bool cleanCryptoProRemains, IProgress<string>? status, CancellationToken cancellationToken)
     {
         const string rollback = "Откат установки";
         var removed = 0;
@@ -347,7 +359,7 @@ public sealed partial class UninstallService : IUninstallService
             }
         }
 
-        StopProcesses(definition);
+        await StopProcessesAsync(definition);
         step.Details = $"Удаляется {product.DisplayName}…";
 
         var status = new Progress<string>(message => step.Details = message);
@@ -539,7 +551,12 @@ public sealed partial class UninstallService : IUninstallService
         return match.Success ? (match.Groups[1].Value, match.Groups[2].Value.Trim()) : (null, string.Empty);
     }
 
-    private static void StopProcesses(UninstallProductDefinition definition)
+    /// <summary>
+    /// Завершает процессы программы, чей путь содержит <see cref="UninstallProductDefinition.ProcessPathContains"/>. Путь процесса
+    /// читается обращением к ядру и на сотне процессов заметно долог, а каждый убитый процесс ждётся до 10 секунд — поэтому все
+    /// процессы разбираются параллельно, и общее время — самое долгое из них, а не сумма.
+    /// </summary>
+    private static async Task StopProcessesAsync(UninstallProductDefinition definition)
     {
         if (string.IsNullOrWhiteSpace(definition.ProcessPathContains))
         {
@@ -547,26 +564,28 @@ public sealed partial class UninstallService : IUninstallService
         }
 
         var self = Environment.ProcessId;
-        foreach (var process in Process.GetProcesses())
+        var marker = definition.ProcessPathContains;
+        await Task.WhenAll(Process.GetProcesses().Select(process => Task.Run(async () =>
         {
             try
             {
                 var path = process.MainModule?.FileName;
-                if (process.Id != self && path?.Contains(definition.ProcessPathContains, StringComparison.OrdinalIgnoreCase) == true)
+                if (process.Id != self && path?.Contains(marker, StringComparison.OrdinalIgnoreCase) == true)
                 {
                     process.Kill(entireProcessTree: true);
-                    process.WaitForExit(10_000);
+                    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                    await process.WaitForExitAsync(timeout.Token);
                 }
             }
             catch (Exception)
             {
-                // Нет доступа к процессу или он уже завершился — деинсталлятор сам сообщит, если файлы заняты.
+                // Нет доступа к процессу, он уже завершился или не успел за 10 секунд — деинсталлятор сам сообщит, если файлы заняты.
             }
             finally
             {
                 process.Dispose();
             }
-        }
+        })));
     }
 
     // ---------- Политика расширений ----------

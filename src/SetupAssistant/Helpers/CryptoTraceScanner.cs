@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -158,16 +159,29 @@ public static partial class CryptoTraceScanner
 
         var context = new ScanContext(Vendors.Where(v => vendors.HasFlag(v.Vendor)).ToArray(), includeContainers);
 
-        ScanOwnBranches(context);
-        ScanCryptoApi(context);
-        ScanCng(context);
-        ScanLsa(context);
-        ScanSystem(context);
-        ScanShell(context);
-        ScanCom(context);
-        ScanBrowsers(context);
-        ScanCertificateStores(context);
-        ScanFiles(context);
+        // Разделы независимы и почти всё время ждут реестр и диск, поэтому идут параллельно: общее время — самый долгий раздел
+        // (COM-классы), а не сумма. Каждый раздел пишет в свою копию контекста; результат собирается в прежнем порядке разделов.
+        var sections = new Action<ScanContext>[]
+        {
+            ScanOwnBranches,
+            ScanCryptoApi,
+            ScanCng,
+            ScanLsa,
+            ScanSystem,
+            ScanShell,
+            c => ScanCom(c, @"SOFTWARE\Classes"),
+            c => ScanCom(c, @"SOFTWARE\WOW6432Node\Classes"),
+            ScanBrowsers,
+            ScanCertificateStores,
+            ScanFiles
+        };
+        var forks = sections.Select(_ => context.Fork()).ToArray();
+        Parallel.For(0, sections.Length, i => sections[i](forks[i]));
+
+        foreach (var item in forks.SelectMany(fork => fork.Items))
+        {
+            context.Add(item);
+        }
 
         return context.Items;
     }
@@ -656,9 +670,9 @@ public static partial class CryptoTraceScanner
     /// <summary>
     /// COM-классы с сервером в папке производителя (CAdESCOM и библиотеки КриптоПро), их библиотеки типов, интерфейсы, ProgID и AppID.
     /// </summary>
-    private static void ScanCom(ScanContext context)
+    private static void ScanCom(ScanContext context, params string[] roots)
     {
-        foreach (var root in new[] { @"SOFTWARE\Classes", @"SOFTWARE\WOW6432Node\Classes" })
+        foreach (var root in roots)
         {
             using var classes = SafeOpen(Hklm, root);
             if (classes is null)
@@ -1365,9 +1379,12 @@ public static partial class CryptoTraceScanner
     private sealed class ScanContext
     {
         private readonly HashSet<string> _seen = new(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, VendorTraits?> _pathOwners = new(StringComparer.OrdinalIgnoreCase);
         private readonly string _windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         private readonly string _system32 = Environment.GetFolderPath(Environment.SpecialFolder.System);
+
+        // Общие для всех разделов (и потоков): путь из реестра → производитель; файл + производитель → подписан ли им.
+        private readonly ConcurrentDictionary<string, VendorTraits?> _pathOwners;
+        private readonly ConcurrentDictionary<string, bool> _signed;
 
         public ScanContext(VendorTraits[] vendors, bool includeContainers)
         {
@@ -1375,7 +1392,22 @@ public static partial class CryptoTraceScanner
             IncludeContainers = includeContainers;
             UserHives = LoadedUserHives();
             Profiles = UserProfiles();
+            _pathOwners = new(StringComparer.OrdinalIgnoreCase);
+            _signed = new(StringComparer.OrdinalIgnoreCase);
         }
+
+        private ScanContext(ScanContext parent)
+        {
+            Vendors = parent.Vendors;
+            IncludeContainers = parent.IncludeContainers;
+            UserHives = parent.UserHives;
+            Profiles = parent.Profiles;
+            _pathOwners = parent._pathOwners;
+            _signed = parent._signed;
+        }
+
+        /// <summary>Копия для параллельного раздела: общие кэши и сведения о пользователях, но свой список найденного.</summary>
+        public ScanContext Fork() => new(this);
 
         public VendorTraits[] Vendors { get; }
 
@@ -1475,13 +1507,24 @@ public static partial class CryptoTraceScanner
 
             var name = Path.GetFileName(longPath);
             var full = string.IsNullOrEmpty(directory) ? Path.Combine(_system32, name) : longPath;
-            if (File.Exists(full) && Vendors.FirstOrDefault(v => IsSignedBy(full, v)) is { } signer)
+
+            // Точные имена известны без обращения к диску (cpsspap.dll, CProCtrl.5.0.0.10008.sys).
+            if (Vendors.FirstOrDefault(v => IsKnownFile(v, name)) is { } known)
             {
-                return signer;
+                return known;
             }
 
-            // Файла нет или в нём нет сведений о производителе: узнаём только по точному имени (ни масок вроде «cp*»).
-            return Vendors.FirstOrDefault(v => IsKnownFile(v, name));
+            // Остальное — по сведениям о версии внутри файла, но только для имён, похожих на файлы производителя (как и при поиске
+            // самих файлов в ScanFiles): в реестре тысячи ссылок на системные DLL, а читать версию каждой с диска — секунды на холодном кэше.
+            foreach (var vendor in Vendors.Where(v => v.SystemFilePrefixes.Any(p => name.StartsWith(p, StringComparison.OrdinalIgnoreCase))))
+            {
+                if (_signed.GetOrAdd($"{full}|{vendor.Vendor}", _ => File.Exists(full) && IsSignedBy(full, vendor)))
+                {
+                    return vendor;
+                }
+            }
+
+            return null;
         }
 
         private string ExtractPath(string raw)
