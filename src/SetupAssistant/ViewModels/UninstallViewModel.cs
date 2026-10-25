@@ -305,7 +305,7 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
         "Содержимое токенов не затрагивается. Chromium GOST остаётся установленным. Для завершения понадобится перезагрузка.\n\nПродолжить?";
 
     [RelayCommand]
-    private void CancelUninstall() => _cancellationTokenSource?.Cancel();
+    private void CancelUninstall() => _cancellationTokenSource.CancelInBackground();
 
     [RelayCommand]
     private void OpenReportDirectory()

@@ -248,16 +248,21 @@ public sealed class InstallerService : IInstallerService
     /// <summary>
     /// Останавливает процесс установщика с дочерними (в том числе завис на вызове диспетчера служб) и дожидается, пока
     /// Windows Installer освободится; если он так и остался занятым, завершает оставшиеся процессы msiexec.exe.
+    /// Продолжение после «Отмены» выполняется в потоке интерфейса (иногда прямо в обработчике кнопки), а убить дерево процессов
+    /// и дождаться его — до 15 секунд, причём установщик, зависший на драйвере КриптоПро, может не умирать вовсе. Поэтому вся
+    /// работа уходит в поток пула с первой строки, ожидание асинхронное, а оставшиеся msiexec.exe завершаются параллельно.
     /// </summary>
-    private async Task StopAfterCancelAsync(Process process, string actionLabel, string processName)
+    private Task StopAfterCancelAsync(Process process, string actionLabel, string processName) =>
+        Task.Run(() => StopInstallerAsync(process, $"{actionLabel} ({processName})"));
+
+    private async Task StopInstallerAsync(Process process, string action)
     {
-        var action = $"{actionLabel} ({processName})";
         try
         {
             if (!process.HasExited)
             {
                 process.Kill(entireProcessTree: true);
-                process.WaitForExit(KillWaitMilliseconds);
+                await WaitForExitAsync(process, TimeSpan.FromMilliseconds(KillWaitMilliseconds));
                 _logger.Warning(action, "Процесс установщика завершён принудительно (отмена)");
             }
         }
@@ -281,24 +286,41 @@ public sealed class InstallerService : IInstallerService
 
         _logger.Warning(action, "Windows Installer остался занятым после отмены, завершаем оставшиеся процессы msiexec.exe");
         var self = Environment.ProcessId;
-        foreach (var other in Process.GetProcessesByName("msiexec"))
+        var stragglers = Process.GetProcessesByName("msiexec");
+        await Task.WhenAll(stragglers.Select(other => StopStragglerAsync(other, self, action)));
+    }
+
+    /// <summary>Завершает один лишний msiexec.exe (кроме собственного процесса) и освобождает его описатель.</summary>
+    private async Task StopStragglerAsync(Process other, int selfId, string action)
+    {
+        try
         {
-            try
+            if (other.Id != selfId)
             {
-                if (other.Id != self)
-                {
-                    other.Kill(entireProcessTree: true);
-                    other.WaitForExit(KillWaitMilliseconds);
-                }
+                other.Kill(entireProcessTree: true);
+                await WaitForExitAsync(other, TimeSpan.FromMilliseconds(KillWaitMilliseconds));
             }
-            catch (Exception ex)
-            {
-                _logger.Warning(action, "Не удалось завершить msiexec.exe", ex.Message);
-            }
-            finally
-            {
-                other.Dispose();
-            }
+        }
+        catch (Exception ex)
+        {
+            _logger.Warning(action, "Не удалось завершить msiexec.exe", ex.Message);
+        }
+        finally
+        {
+            other.Dispose();
+        }
+    }
+
+    /// <summary>Ждёт завершения процесса не дольше <paramref name="timeout"/>; не завершился — просто возвращается, как и прежнее WaitForExit(мс).</summary>
+    private static async Task WaitForExitAsync(Process process, TimeSpan timeout)
+    {
+        using var timeoutSource = new CancellationTokenSource(timeout);
+        try
+        {
+            await process.WaitForExitAsync(timeoutSource.Token);
+        }
+        catch (OperationCanceledException)
+        {
         }
     }
 

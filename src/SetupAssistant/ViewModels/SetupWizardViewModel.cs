@@ -577,7 +577,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
     {
         IsCancelling = true;
         PhaseText = "Отмена… останавливаем установщик";
-        _cancellationTokenSource?.Cancel();
+        _cancellationTokenSource.CancelInBackground();
     }
 
     private bool CanCancelSetup() => !IsCancelling;

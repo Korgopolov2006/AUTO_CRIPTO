@@ -160,7 +160,7 @@ public sealed class DialogService : IDialogService
             {
                 if (!_disposed)
                 {
-                    _cancelled.Cancel();
+                    _cancelled.CancelInBackground();
                     _owner.SetPromptVisible(false);
                 }
             };
