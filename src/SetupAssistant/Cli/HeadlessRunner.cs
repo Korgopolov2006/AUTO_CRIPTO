@@ -104,16 +104,25 @@ public sealed class HeadlessRunner
         return summary.ExitCode;
     }
 
+    private void PrintChecks(IEnumerable<PreflightCheck> checks)
+    {
+        foreach (var check in checks)
+        {
+            Print($"  [{check.Status}] {check.Name}: {check.Message}");
+            if (check.HasAdvice && check.Status != StatusLevel.Ok)
+            {
+                Print($"      Что сделать: {check.Advice}");
+            }
+        }
+    }
+
     private async Task<int> SilentAsync(CommandLineOptions options)
     {
         var logger = _services.GetRequiredService<ILoggingService>();
         logger.Info("Тихая установка", "Запуск без окна (--silent)");
 
         var preflight = await _services.GetRequiredService<IPreflightService>().RunAsync();
-        foreach (var check in preflight)
-        {
-            Print($"  [{check.Status}] {check.Name}: {check.Message}");
-        }
+        PrintChecks(preflight);
 
         if (preflight.Any(c => c.IsBlocking))
         {
@@ -170,6 +179,15 @@ public sealed class HeadlessRunner
     private async Task<int> UninstallAsync(bool kontinentOnly, bool full, bool deleteContainers)
     {
         _services.GetRequiredService<ILoggingService>().Info("Тихое удаление", full ? "Запуск без окна (--uninstall --full)" : "Запуск без окна (--uninstall)");
+
+        var preflight = await _services.GetRequiredService<IPreflightService>().RunForUninstallAsync(full);
+        PrintChecks(preflight);
+
+        if (preflight.Any(c => c.IsBlocking))
+        {
+            Print("Удаление невозможно: устраните проблему из списка выше.");
+            return ExitPreflightFailed;
+        }
 
         var service = _services.GetRequiredService<IUninstallService>();
         IReadOnlyList<SetupStepModel> steps = service.BuildPlan(new UninstallOptions(RemovePersonalCertificates: false, FullCleanup: full));

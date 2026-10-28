@@ -35,6 +35,17 @@ public sealed class SilentDialogService : IDialogService
         return false;
     }
 
+    public bool ShowPreflightSummary(string title, string intro, IReadOnlyList<Models.PreflightCheck> checks,
+        Func<Task<IReadOnlyList<Models.PreflightCheck>>> recheck, string continueText)
+    {
+        foreach (var check in checks.Where(c => c.Status != Models.StatusLevel.Ok))
+        {
+            _logger.Warning(title, check.ToText().Replace("\n", " "));
+        }
+
+        return !checks.Any(c => c.IsBlocking);
+    }
+
     public IActionPrompt ShowActionPrompt(string title, string message, string? cancelText = null, TimeSpan? showAfter = null)
     {
         _logger.Info(title, message.Replace("\n", " "));

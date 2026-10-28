@@ -159,14 +159,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         IsPreflightRunning = true;
         try
         {
-            var checks = await _preflightService.RunAsync();
-            PreflightChecks.Clear();
-            foreach (var check in checks)
-            {
-                PreflightChecks.Add(check);
-            }
-
-            HasBlockingPreflight = checks.Any(c => c.IsBlocking);
+            ApplyPreflight(await _preflightService.RunAsync());
         }
         catch (Exception ex)
         {
@@ -176,6 +169,51 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         {
             IsPreflightRunning = false;
         }
+    }
+
+    private void ApplyPreflight(IReadOnlyList<PreflightCheck> checks)
+    {
+        PreflightChecks.Clear();
+        foreach (var check in checks)
+        {
+            PreflightChecks.Add(check);
+        }
+
+        HasBlockingPreflight = checks.Any(c => c.IsBlocking);
+    }
+
+    /// <summary>
+    /// Подтверждение запуска с итогом проверки: всё в порядке — обычный вопрос, иначе окно с проблемами, советами,
+    /// «Проверить снова» и «Закрыть мешающие программы». Список проверок на экране обновляется тем, что показано в окне.
+    /// </summary>
+    private async Task<bool> ConfirmStartAsync(string title, string message, string continueText)
+    {
+        IReadOnlyList<PreflightCheck> checks;
+        try
+        {
+            checks = await _preflightService.RunAsync();
+        }
+        catch (Exception ex)
+        {
+            // Сбой самой проверки не должен мешать запуску: шаги сами сообщат о своих ошибках.
+            _logger.Warning("Предварительная проверка", "Не удалось выполнить", ex.Message);
+            return _dialogService.Confirm(message, title);
+        }
+
+        ApplyPreflight(checks);
+        if (checks.All(c => c.Status == StatusLevel.Ok))
+        {
+            return _dialogService.Confirm(message, title);
+        }
+
+        var latest = checks;
+        var proceed = _dialogService.ShowPreflightSummary(title, message, checks, async () =>
+        {
+            latest = await _preflightService.RunAsync();
+            ApplyPreflight(latest);
+            return latest;
+        }, continueText);
+        return proceed && !latest.Any(c => c.IsBlocking);
     }
 
     /// <summary>Шаги, относящиеся только к Континент-АП: без них набор «КриптоПро» обходится.</summary>
@@ -259,12 +297,6 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
             return;
         }
 
-        if (HasBlockingPreflight)
-        {
-            _dialogService.ShowError("Предварительная проверка выявила проблему, из-за которой установка невозможна. Устраните её (см. список вверху) и повторите.", "Установка невозможна");
-            return;
-        }
-
         var selected = Steps.Count(s => s.IsSelectable && s.IsSelected);
         if (selected == 0)
         {
@@ -272,7 +304,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
             return;
         }
 
-        if (!_dialogService.Confirm($"Будет выполнена установка и настройка выбранных компонентов ({selected}). Продолжить?"))
+        if (!await ConfirmStartAsync("Установка и настройка", $"Будет выполнена установка и настройка выбранных компонентов ({selected}). Продолжить?", "Установить"))
         {
             return;
         }
@@ -295,14 +327,17 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
             return;
         }
 
-        if (HasBlockingPreflight)
+        var stepsMessage = "Будут выполнены шаги:\n• " + string.Join("\n• ", titles) + "\n\nПродолжить?";
+        if (askConfirmation)
+        {
+            if (!await ConfirmStartAsync("Исправление проблем", stepsMessage, "Исправить"))
+            {
+                return;
+            }
+        }
+        else if (HasBlockingPreflight)
         {
             _dialogService.ShowError("Предварительная проверка выявила проблему, из-за которой установка невозможна. Устраните её и повторите.", "Установка невозможна");
-            return;
-        }
-
-        if (askConfirmation && !_dialogService.Confirm("Будут выполнены шаги:\n• " + string.Join("\n• ", titles) + "\n\nПродолжить?", "Исправление проблем"))
-        {
             return;
         }
 

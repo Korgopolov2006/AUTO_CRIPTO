@@ -22,6 +22,9 @@ public interface IUninstallService
     /// <summary>Сканирует компьютер (ничего не меняя) и возвращает шаги отката с описанием найденного.</summary>
     IReadOnlyList<SetupStepModel> BuildPlan(UninstallOptions options);
 
+    /// <summary>Сколько из продуктов, которые умеет удалять приложение, сейчас установлено (ничего не меняет).</summary>
+    int CountInstalledProducts();
+
     /// <summary>Шаги продолжения полной очистки после перезагрузки: программы уже удалены, остаётся глубокая очистка.</summary>
     IReadOnlyList<SetupStepModel> BuildResumePlan();
 
