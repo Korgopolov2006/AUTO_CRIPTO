@@ -106,7 +106,9 @@ public sealed class InstallerService : IInstallerService
 
                 if (isMsi && run.ExitCode == ExitCodeInstallerBusy && attempt < MaxBusyAttempts)
                 {
-                    _logger.Warning($"{actionLabel} ({processName})", $"Windows Installer занят (код 1618), повтор {attempt + 1} из {MaxBusyAttempts}");
+                    var busyCause = InstallerBusyInspector.Inspect();
+                    _logger.Warning($"{actionLabel} ({processName})",
+                        $"Windows Installer занят (код 1618), повтор {attempt + 1} из {MaxBusyAttempts}" + (busyCause is null ? string.Empty : $". Сейчас: {busyCause.Description}"));
                     continue;
                 }
 
@@ -362,8 +364,12 @@ public sealed class InstallerService : IInstallerService
         }
 
         var action = $"{actionLabel} ({processName})";
-        _logger.Warning(action, "Windows Installer занят другой установкой, ожидание её окончания");
+        var cause = InstallerBusyInspector.Inspect();
+        _logger.Warning(action, "Windows Installer занят другой установкой, ожидание её окончания" + (cause is null ? string.Empty : $". Сейчас: {cause.Description}"));
         var stopwatch = Stopwatch.StartNew();
+        var causeText = cause is null
+            ? "Обычно это незавершённая операция КриптоПро или обновление Windows — окно трогать не нужно."
+            : $"Сейчас: {cause.Description}. Окно трогать не нужно.";
 
         while (WindowsInstallerState.IsBusy())
         {
@@ -375,12 +381,11 @@ public sealed class InstallerService : IInstallerService
 
             if (stopwatch.Elapsed > MaxInstallerWait)
             {
-                _logger.Error(action, "Windows Installer не освободился за отведённое время, установка запускается как есть");
+                _logger.Error(action, "Windows Installer не освободился за отведённое время, установка запускается как есть. " + InstallerBusyInspector.AdviceFor(cause));
                 return;
             }
 
-            status?.Report($"Ждём окончания другой установки Windows: {FormatElapsed(stopwatch.Elapsed)}. " +
-                           "Обычно это незавершённая операция КриптоПро или обновление Windows — окно трогать не нужно.");
+            status?.Report($"Ждём окончания другой установки Windows: {FormatElapsed(stopwatch.Elapsed)}. {causeText}");
             await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
         }
 

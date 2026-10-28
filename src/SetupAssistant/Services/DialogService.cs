@@ -1,8 +1,10 @@
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using SetupAssistant.Helpers;
+using SetupAssistant.Models;
 using ModernWpf.Controls;
 using SetupAssistant.Services.Interfaces;
 
@@ -38,6 +40,108 @@ public sealed class DialogService : IDialogService
 
     public bool ConfirmChoice(string message, string title, string acceptText, string declineText) =>
         Show(DialogKind.Warning, title, message, acceptText, declineText, ContentDialogButton.Close) == ContentDialogResult.Primary;
+
+    public bool ShowPreflightSummary(string title, string intro, IReadOnlyList<PreflightCheck> checks,
+        Func<Task<IReadOnlyList<PreflightCheck>>> recheck, string continueText)
+    {
+        var dispatcher = Application.Current.Dispatcher;
+        if (!dispatcher.CheckAccess())
+        {
+            return dispatcher.Invoke(() => ShowPreflightSummary(title, intro, checks, recheck, continueText));
+        }
+
+        var items = new ObservableCollection<PreflightCheck>(checks);
+        var list = new ItemsControl
+        {
+            ItemsSource = items,
+            ItemTemplate = (DataTemplate)Application.Current.FindResource("PreflightItemTemplate"),
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+
+        var closeButton = new Button { Content = "Закрыть мешающие программы", Margin = new Thickness(0, 0, 8, 0) };
+        var recheckButton = new Button { Content = "Проверить снова" };
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
+        buttons.Children.Add(closeButton);
+        buttons.Children.Add(recheckButton);
+
+        var panel = new StackPanel();
+        panel.Children.Add(new TextBlock { Text = intro, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 14) });
+        panel.Children.Add(new TextBlock { Text = "Предварительная проверка", FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 6) });
+        panel.Children.Add(list);
+
+        // Ширина и высота подстраиваются под окно: окно приложения может быть небольшим. Кнопки — вне прокрутки, чтобы всегда были видны.
+        var owner = Application.Current.MainWindow;
+        var width = Math.Clamp((owner?.ActualWidth ?? 900) - 160, 520, 780);
+        var scrollHeight = Math.Clamp((owner?.ActualHeight ?? 700) - 330, 200, 520);
+
+        var content = new StackPanel { Width = width };
+        content.Children.Add(new ScrollViewer
+        {
+            Content = panel,
+            MaxHeight = scrollHeight,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+        });
+        content.Children.Add(buttons);
+
+        var dialog = new ContentDialog
+        {
+            Title = BuildTitle(checks.Any(c => c.IsBlocking) ? DialogKind.Error : DialogKind.Warning, title),
+            Content = content,
+            PrimaryButtonText = continueText,
+            CloseButtonText = "Отмена",
+            DefaultButton = ContentDialogButton.Close
+        };
+
+        void Apply(IReadOnlyList<PreflightCheck> current)
+        {
+            items.Clear();
+            foreach (var check in current)
+            {
+                items.Add(check);
+            }
+
+            dialog.IsPrimaryButtonEnabled = !current.Any(c => c.IsBlocking);
+            closeButton.Visibility = current.Any(c => c.ClosablePids is { Count: > 0 }) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        async Task RefreshAsync(Func<Task> before)
+        {
+            closeButton.IsEnabled = false;
+            recheckButton.IsEnabled = false;
+            try
+            {
+                await before();
+                Apply(await recheck());
+            }
+            finally
+            {
+                closeButton.IsEnabled = true;
+                recheckButton.IsEnabled = true;
+            }
+        }
+
+        recheckButton.Click += async (_, _) => await RefreshAsync(() => Task.CompletedTask);
+        closeButton.Click += async (_, _) => await RefreshAsync(async () =>
+        {
+            var pids = items.Where(c => c.ClosablePids is not null).SelectMany(c => c.ClosablePids!).ToList();
+            await FileLockInspector.RequestCloseAsync(pids, TimeSpan.FromSeconds(8));
+        });
+
+        Apply(checks);
+
+        var result = ContentDialogResult.None;
+        var frame = new DispatcherFrame();
+        dialog.Closed += (_, args) =>
+        {
+            result = args.Result;
+            frame.Continue = false;
+        };
+
+        _ = dialog.ShowAsync();
+        Dispatcher.PushFrame(frame);
+        return result == ContentDialogResult.Primary;
+    }
 
     private static ContentDialogResult Show(
         DialogKind kind,

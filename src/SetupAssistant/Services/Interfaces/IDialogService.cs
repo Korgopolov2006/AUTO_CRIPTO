@@ -30,6 +30,15 @@ public interface IDialogService
 
     event EventHandler? ActionPromptVisibilityChanged;
 
+    /// <summary>
+    /// Итог предварительной проверки перед установкой или удалением: список проблем с советами, кнопки «Проверить снова» и
+    /// «Закрыть мешающие программы». «Продолжить» недоступно, пока есть ошибки. true — пользователь решил продолжить.
+    /// </summary>
+    /// <param name="intro">Что будет сделано (текст подтверждения).</param>
+    /// <param name="recheck">Повторная проверка после того, как пользователь что-то исправил.</param>
+    bool ShowPreflightSummary(string title, string intro, IReadOnlyList<Models.PreflightCheck> checks,
+        Func<Task<IReadOnlyList<Models.PreflightCheck>>> recheck, string continueText);
+
     /// <summary>Открывает диалог сохранения файла и возвращает выбранный путь, либо null при отмене.</summary>
     string? ShowSaveFileDialog(string defaultFileName, string filter);
 }

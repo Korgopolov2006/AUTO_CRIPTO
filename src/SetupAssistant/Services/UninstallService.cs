@@ -309,6 +309,9 @@ public sealed partial class UninstallService : IUninstallService
 
     // ---------- Продукты ----------
 
+    public int CountInstalledProducts() =>
+        _configService.Current.Uninstall.Products.Count(p => FindProduct(p) is not null);
+
     private InstalledProductInfo? FindProduct(UninstallProductDefinition definition) =>
         definition.DisplayNamePatterns
             .Select(_registryService.FindInstalledProduct)

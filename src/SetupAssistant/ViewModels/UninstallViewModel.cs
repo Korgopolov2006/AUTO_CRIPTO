@@ -15,12 +15,16 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
         "После входа в систему приложение запустится само и завершит полную очистку (потребуется подтвердить запуск от имени администратора).";
 
     private readonly IUninstallService _uninstallService;
+    private readonly IPreflightService _preflightService;
     private readonly IDialogService _dialogService;
     private readonly INotificationService _notifications;
     private readonly INavigationService _navigationService;
     private readonly ILoggingService _logger;
 
     private CancellationTokenSource? _cancellationTokenSource;
+
+    /// <summary>Идёт проверка перед удалением: повторное нажатие кнопки игнорируется.</summary>
+    private bool _isValidating;
 
     /// <summary>Полная очистка продолжится после перезагрузки (зарегистрирован автозапуск).</summary>
     private bool _cleanupResumePending;
@@ -46,12 +50,14 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
 
     public UninstallViewModel(
         IUninstallService uninstallService,
+        IPreflightService preflightService,
         IDialogService dialogService,
         INotificationService notifications,
         INavigationService navigationService,
         ILoggingService logger)
     {
         _uninstallService = uninstallService;
+        _preflightService = preflightService;
         _dialogService = dialogService;
         _notifications = notifications;
         _navigationService = navigationService;
@@ -125,7 +131,31 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
             ? "Континент-АП и его настройки останутся.\n"
             : withKontinent == true ? "Будут также удалены Континент-АП и его папки настроек.\n" : string.Empty;
 
-        if (!_dialogService.Confirm(FullCleanup ? FullCleanupMessage(kontinentNote) : UninstallMessage(kontinentNote), FullCleanup ? "Полная очистка" : "Удаление компонентов"))
+        if (_isValidating)
+        {
+            return;
+        }
+
+        // Сначала проверяем, сможет ли удаление вообще начаться: права, место, занятый установщик, доступность папки отчёта.
+        _isValidating = true;
+        IReadOnlyList<PreflightCheck> checks;
+        try
+        {
+            checks = await RunPreflightAsync();
+        }
+        finally
+        {
+            _isValidating = false;
+        }
+
+        var title = FullCleanup ? "Полная очистка" : "Удаление компонентов";
+        var message = FullCleanup ? FullCleanupMessage(kontinentNote) : UninstallMessage(kontinentNote);
+
+        // Всё в порядке — обычный вопрос; иначе итоговое окно с проблемами, советами, «Проверить снова» и «Закрыть мешающие программы».
+        var proceed = checks.All(c => c.Status == StatusLevel.Ok)
+            ? _dialogService.Confirm(message, title)
+            : _dialogService.ShowPreflightSummary(title, message, checks, () => _preflightService.RunForUninstallAsync(FullCleanup), "Удалить");
+        if (!proceed)
         {
             return;
         }
@@ -145,6 +175,20 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
         var session = FullCleanup ? _uninstallService.CreateFullCleanupSession(includeKontinent: withKontinent != false) : null;
         ReportDirectory = session?.BackupDirectory;
         await RunStepsAsync(session);
+    }
+
+    private async Task<IReadOnlyList<PreflightCheck>> RunPreflightAsync()
+    {
+        try
+        {
+            return await _preflightService.RunForUninstallAsync(FullCleanup);
+        }
+        catch (Exception ex)
+        {
+            // Сбой самой проверки не должен мешать удалению: его шаги сами сообщат о своих ошибках.
+            _logger.Warning("Предварительная проверка", "Не удалось выполнить проверку перед удалением", ex.Message);
+            return Array.Empty<PreflightCheck>();
+        }
     }
 
     /// <summary>Продолжение полной очистки после перезагрузки (запуск с --resume): программы уже удалены, остаётся глубокая очистка.</summary>

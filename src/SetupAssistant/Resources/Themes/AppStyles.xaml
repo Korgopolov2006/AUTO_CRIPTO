@@ -364,7 +364,21 @@
             <ContentPresenter Content="{Binding Status}" ContentTemplate="{StaticResource StatusIconTemplate}"
                               VerticalAlignment="Top" Margin="0,0,12,0" />
             <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" />
-            <TextBlock Grid.Column="2" Text="{Binding Message}" Style="{StaticResource MutedTextStyle}" />
+            <StackPanel Grid.Column="2">
+                <TextBlock Text="{Binding Message}" Style="{StaticResource MutedTextStyle}" />
+                <TextBlock Text="{Binding Advice, StringFormat='Что сделать: {0}'}" TextWrapping="Wrap" Margin="0,3,0,0" FontWeight="SemiBold">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasAdvice}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
         </Grid>
     </DataTemplate>
 
