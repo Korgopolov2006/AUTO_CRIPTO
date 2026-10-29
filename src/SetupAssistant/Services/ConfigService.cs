@@ -142,5 +142,55 @@ public sealed class ConfigService : IConfigService, IDisposable
         }
     }
 
+    public string EditableConfigPath => _configFilePath;
+
+    public long? GetDistributionSize(string relativePath)
+    {
+        if (string.IsNullOrWhiteSpace(relativePath))
+        {
+            return null;
+        }
+
+        var expanded = Environment.ExpandEnvironmentVariables(relativePath);
+        var path = Path.IsPathRooted(expanded) ? expanded : Path.Combine(_baseDirectory, expanded);
+        if (File.Exists(path))
+        {
+            return new FileInfo(path).Length;
+        }
+
+        return _payload?.GetSize(expanded);
+    }
+
+    public IReadOnlyList<string> Update(IEnumerable<ConfigEdit> edits)
+    {
+        var text = File.Exists(_configFilePath)
+            ? File.ReadAllText(_configFilePath)
+            : _payload?.ReadAllText(@"Config\Config.json")
+              ?? throw new FileNotFoundException("Config.json не найден ни рядом с программой, ни внутри неё.");
+
+        var result = JsonConfigEditor.Apply(text, edits);
+
+        // Не сохраняем то, что потом не загрузится.
+        var check = JsonSerializer.Deserialize<AppConfig>(result.Text, SerializerOptions)
+                    ?? throw new InvalidDataException("После правки Config.json оказался пустым.");
+        _ = check;
+
+        var directory = Path.GetDirectoryName(_configFilePath)!;
+        Directory.CreateDirectory(directory);
+
+        if (File.Exists(_configFilePath))
+        {
+            File.Copy(_configFilePath, _configFilePath + ".bak", overwrite: true);
+        }
+
+        // Записываем во временный файл и подменяем целиком: оборванная запись не оставит половину файла.
+        var temp = _configFilePath + ".tmp";
+        File.WriteAllText(temp, result.Text, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: true));
+        File.Move(temp, _configFilePath, overwrite: true);
+
+        Load();
+        return result.Missing;
+    }
+
     public void Dispose() => _payload?.Dispose();
 }

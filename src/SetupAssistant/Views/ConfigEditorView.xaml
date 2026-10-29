@@ -1,0 +1,118 @@
+<UserControl x:Class="SetupAssistant.Views.ConfigEditorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.modernwpf.com/2019"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="1100" d:DesignHeight="700">
+
+    <UserControl.Resources>
+        <!-- Скрывает пояснение, если оно пустое -->
+        <Style x:Key="HintStyle" TargetType="TextBlock" BasedOn="{StaticResource MutedTextStyle}">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <DataTemplate x:Key="FieldTemplate">
+            <Grid Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="280" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Margin="0,0,16,0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="  ● изменено" FontSize="12" Foreground="{DynamicResource SystemControlHighlightAccentBrush}"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding IsChanged, Converter={StaticResource BoolToVisibility}}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding Hint}" Style="{StaticResource HintStyle}" />
+                    <TextBlock Text="{Binding Error}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                               Foreground="{StaticResource StatusErrorBrush}"
+                               Visibility="{Binding HasError, Converter={StaticResource BoolToVisibility}}" />
+                    <TextBlock Text="{Binding Warning}" FontSize="12" TextWrapping="Wrap" Margin="0,2,0,0"
+                               Foreground="{StaticResource StatusWarningBrush}"
+                               Visibility="{Binding HasWarning, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+
+                <TextBox Grid.Column="1" VerticalAlignment="Top"
+                         Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                         AutomationProperties.Name="{Binding Title}"
+                         Visibility="{Binding IsEditable, Converter={StaticResource BoolToVisibility}}" />
+                <ui:ToggleSwitch Grid.Column="1" VerticalAlignment="Top" MinWidth="0"
+                                 OnContent="Да" OffContent="Нет"
+                                 IsOn="{Binding IsChecked, Mode=TwoWay}"
+                                 AutomationProperties.Name="{Binding Title}"
+                                 Visibility="{Binding IsToggle, Converter={StaticResource BoolToVisibility}}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <DockPanel Margin="36,28,36,0">
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="Конфигурация" Style="{StaticResource PageTitleStyle}" />
+            <TextBlock Style="{StaticResource PageSubtitleStyle}" Margin="0,0,0,12"
+                       Text="Меняйте нужные параметры прямо здесь. Файл править руками не придётся." />
+        </StackPanel>
+
+        <!-- Панель действий закреплена внизу -->
+        <Border DockPanel.Dock="Bottom" Padding="0,12,0,16"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,1,0,0">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Сохранить" Style="{StaticResource AccentButtonStyle}" Padding="24,6"
+                        Command="{Binding SaveCommand}" />
+                <Button Content="Отменить изменения" Margin="12,0,0,0" Padding="16,6" Command="{Binding DiscardCommand}" />
+                <Button Content="Назад к настройкам" Margin="12,0,0,0" Padding="16,6" Command="{Binding CloseCommand}" />
+                <TextBlock Text="Есть несохранённые изменения" VerticalAlignment="Center" Margin="16,0,0,0"
+                           Style="{StaticResource MutedTextStyle}"
+                           Visibility="{Binding HasChanges, Converter={StaticResource BoolToVisibility}}" />
+                <TextBlock Text="Исправьте поля с красной подписью, иначе сохранить нельзя" VerticalAlignment="Center" Margin="16,0,0,0"
+                           Foreground="{StaticResource StatusErrorBrush}"
+                           Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibility}}" />
+            </StackPanel>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,12,28" MaxWidth="900" HorizontalAlignment="Left">
+
+                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,20">
+                    <StackPanel>
+                        <TextBlock Text="Куда сохраняется" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding FilePath}" TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding ConfigSource, StringFormat='Сейчас используется: {0}'}" Style="{StaticResource MutedTextStyle}"
+                                   TextWrapping="Wrap" Margin="0,4,0,0" />
+                        <TextBlock Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Text="Комментарии в файле сохраняются. Перед каждым сохранением прежний файл копируется в Config.json.bak. Параметры тихой установки здесь не меняются." />
+                        <WrapPanel Margin="0,12,0,0">
+                            <Button Content="Показать файл" Margin="0,0,8,0" Command="{Binding ShowFileCommand}" />
+                            <Button Content="Вернуть прежний файл" Command="{Binding RestoreBackupCommand}"
+                                    Visibility="{Binding CanRestoreBackup, Converter={StaticResource BoolToVisibility}}"
+                                    ToolTip="Вернёт Config.json к состоянию до последнего сохранения" />
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <ItemsControl ItemsSource="{Binding Groups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,0,0,8">
+                                <TextBlock Text="{Binding Title}" Style="{StaticResource SectionTitleStyle}" />
+                                <TextBlock Text="{Binding Description}" Style="{StaticResource HintStyle}" Margin="0,0,0,8" FontSize="13" />
+                                <Border Style="{StaticResource CardStyle}" Margin="0,0,0,12" Padding="20,18,20,4">
+                                    <ItemsControl ItemsSource="{Binding Fields}" ItemTemplate="{StaticResource FieldTemplate}" />
+                                </Border>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

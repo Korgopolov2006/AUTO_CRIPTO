@@ -97,6 +97,7 @@ public partial class App : Application
         services.AddSingleton<IBrowserService, BrowserService>();
         services.AddSingleton<IExtensionService, ExtensionService>();
         services.AddSingleton<IExtensionUpdateService, ExtensionUpdateService>();
+        services.AddSingleton<IRemoteVersionService, RemoteVersionService>();
         services.AddSingleton<ICertificateService, CertificateService>();
         services.AddSingleton<ICaCertificateService, CaCertificateService>();
         services.AddSingleton<INativeMessagingService, NativeMessagingService>();
@@ -136,6 +137,8 @@ public partial class App : Application
         services.AddSingleton<TokenPinViewModel>();
         services.AddSingleton<SignatureTestViewModel>();
         services.AddSingleton<FirstRunViewModel>();
+        services.AddSingleton<VersionsViewModel>();
+        services.AddSingleton<ConfigEditorViewModel>();
         services.AddTransient<LogViewerViewModel>();
         services.AddTransient<SettingsViewModel>();
 

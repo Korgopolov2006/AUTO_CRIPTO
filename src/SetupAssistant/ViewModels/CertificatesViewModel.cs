@@ -191,7 +191,7 @@ public partial class CertificatesViewModel : ViewModelBase, INavigationAware, IR
     {
         if (SelectedCertificate is null)
         {
-            _dialogService.ShowWarning("Выберите сертификат для установки.");
+            _dialogService.ShowWarning("Сначала выберите сертификат в списке, затем нажмите «Установить выбранный».");
             return;
         }
 
@@ -205,7 +205,11 @@ public partial class CertificatesViewModel : ViewModelBase, INavigationAware, IR
             }
             else
             {
-                _dialogService.ShowError("Не удалось установить выбранный сертификат.");
+                _dialogService.ShowProblem(new ProblemInfo(
+                    "Не удалось установить сертификат",
+                    "Сертификат не попал в хранилище «Личное».",
+                    "Проверьте, что носитель с ключом подключён и виден в разделе «Диагностика». " +
+                    "Если на токене есть PIN-код, введите его в окне КриптоПро (оно может быть за окном приложения) и повторите."));
             }
         }
         finally

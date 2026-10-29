@@ -1,3 +1,5 @@
+using SetupAssistant.Models;
+
 namespace SetupAssistant.Services.Interfaces;
 
 /// <summary>Диалоговые окна и уведомления для пользователя.</summary>
@@ -8,6 +10,12 @@ public interface IDialogService
     void ShowWarning(string message, string title = "Предупреждение");
 
     void ShowError(string message, string title = "Ошибка");
+
+    /// <summary>
+    /// Окно ошибки с тремя частями: что случилось, что делать, подробности (свёрнуты). Кнопки: «Открыть журнал»,
+    /// «Скопировать описание» и «Повторить» (если <see cref="ProblemInfo.CanRetry"/>). Причина пишется в журнал.
+    /// </summary>
+    ProblemChoice ShowProblem(ProblemInfo problem);
 
     bool Confirm(string message, string title = "Подтверждение");
 

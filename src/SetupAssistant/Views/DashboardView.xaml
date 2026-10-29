@@ -48,17 +48,13 @@
                                        Margin="0,4,0,0" />
 
                             <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
-                                <Button Content="Выбрать недостающее в мастере" Style="{StaticResource AccentButtonStyle}" Padding="20,6"
-                                        Command="{Binding SelectMissingCommand}"
-                                        Visibility="{Binding CanSelectMissing, Converter={StaticResource BoolToVisibility}}" />
-                                <Button Content="Показать ход настройки" Style="{StaticResource AccentButtonStyle}" Padding="20,6"
-                                        Command="{Binding ShowSetupProgressCommand}"
-                                        Visibility="{Binding IsSetupRunning, Converter={StaticResource BoolToVisibility}}" />
+                                <Button Content="{Binding PrimaryActionText}" Style="{StaticResource AccentButtonStyle}" Padding="20,6"
+                                        Command="{Binding RunPrimaryCommand}"
+                                        IsEnabled="{Binding IsChecking, Converter={StaticResource InverseBool}}" />
                                 <Button Content="Проверить снова" Margin="12,0,0,0" Padding="16,6"
                                         Command="{Binding RecheckCommand}"
-                                        IsEnabled="{Binding IsChecking, Converter={StaticResource InverseBool}}" />
-                                <Button Content="Подробности" Margin="12,0,0,0" Padding="16,6"
-                                        Command="{Binding CheckWorkplaceCommand}" />
+                                        IsEnabled="{Binding IsChecking, Converter={StaticResource InverseBool}}"
+                                        Visibility="{Binding ShowRecheckButton, Converter={StaticResource BoolToVisibility}}" />
                             </StackPanel>
                         </StackPanel>
                     </Grid>
@@ -127,18 +123,19 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <Button Grid.Column="0" Style="{StaticResource AccentActionTileStyle}"
+                <Button Grid.Column="0" Style="{StaticResource ActionTileStyle}"
                         Command="{Binding SetupWorkplaceCommand}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <ui:FontIcon Glyph="&#xE768;" FontSize="28" Margin="0,0,18,0" VerticalAlignment="Center" />
+                        <ui:FontIcon Glyph="&#xE768;" FontSize="28" Margin="0,0,18,0" VerticalAlignment="Center"
+                                     Foreground="{DynamicResource SystemControlHighlightAccentBrush}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="Настроить рабочее место" FontSize="16" FontWeight="SemiBold" />
-                            <TextBlock Text="Выбрать компоненты, установить и настроить"
-                                       TextWrapping="Wrap" Margin="0,4,0,0" Opacity="0.85" />
+                            <TextBlock Text="Самостоятельно выбрать, что установить"
+                                       Style="{StaticResource MutedTextStyle}" TextWrapping="Wrap" Margin="0,4,0,0" />
                         </StackPanel>
                     </Grid>
                 </Button>
@@ -154,7 +151,7 @@
                                      Foreground="{DynamicResource SystemControlHighlightAccentBrush}" />
                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
                             <TextBlock Text="Диагностика" FontSize="16" FontWeight="SemiBold" />
-                            <TextBlock Text="Полная проверка компонентов, отчёт"
+                            <TextBlock Text="Что не так и что с этим делать, отчёт"
                                        Style="{StaticResource MutedTextStyle}" Margin="0,4,0,0" />
                         </StackPanel>
                     </Grid>

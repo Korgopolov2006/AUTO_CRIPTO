@@ -43,6 +43,12 @@
             <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
                 <views:SettingsView />
             </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:VersionsViewModel}">
+                <views:VersionsView />
+            </DataTemplate>
+            <DataTemplate DataType="{x:Type vm:ConfigEditorViewModel}">
+                <views:ConfigEditorView />
+            </DataTemplate>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

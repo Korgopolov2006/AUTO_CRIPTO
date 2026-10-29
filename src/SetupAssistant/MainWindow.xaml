@@ -44,6 +44,11 @@
                         <ui:FontIcon Glyph="&#xE9D9;" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
+                <ui:NavigationViewItem Content="Версии" Tag="{x:Type vm:VersionsViewModel}">
+                    <ui:NavigationViewItem.Icon>
+                        <ui:FontIcon Glyph="&#xE895;" />
+                    </ui:NavigationViewItem.Icon>
+                </ui:NavigationViewItem>
                 <ui:NavigationViewItem Tag="{x:Type vm:SetupWizardViewModel}" AutomationProperties.Name="Настройка">
                     <ui:NavigationViewItem.Icon>
                         <ui:FontIcon Glyph="&#xE768;" />

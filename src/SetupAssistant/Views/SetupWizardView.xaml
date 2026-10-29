@@ -10,32 +10,42 @@
     <DockPanel Margin="36,28,36,0">
         <StackPanel DockPanel.Dock="Top">
             <TextBlock Text="Настройка рабочего места" Style="{StaticResource PageTitleStyle}" />
-            <TextBlock Text="Отметьте компоненты для установки. Уже установленные будут пропущены." Style="{StaticResource PageSubtitleStyle}"
+            <TextBlock Text="1. Отметьте галочками, что нужно на этом компьютере.  2. Нажмите «Начать настройку».  Уже установленное будет пропущено." Style="{StaticResource PageSubtitleStyle}"
                        Margin="0,0,0,12" />
         </StackPanel>
 
         <!-- Действия -->
-        <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,10">
-            <Button Content="Начать настройку" Style="{StaticResource AccentButtonStyle}" Margin="0,0,12,6" Padding="18,6"
-                    Command="{Binding StartSetupCommand}" />
-            <Button Content="КриптоПро" Style="{StaticResource AccentButtonStyle}" Margin="0,0,8,6" Padding="18,6"
-                    Command="{Binding SetupCryptoProCommand}" IsEnabled="{Binding CanEditSelection}"
-                    ToolTip="Настройка КриптоПро и остальных компонентов, без Континент-АП" />
-            <Button Content="КриптоПро с Континентом" Style="{StaticResource AccentButtonStyle}" Margin="0,0,12,6" Padding="18,6"
-                    Command="{Binding SetupCryptoProWithKontinentCommand}" IsEnabled="{Binding CanEditSelection}"
-                    ToolTip="Настройка КриптоПро, остальных компонентов и Континент-АП (если в конфигурации задан его дистрибутив)" />
-            <Button Content="Отмена" Margin="0,0,12,6" Padding="18,6" Command="{Binding CancelSetupCommand}"
-                    Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}" />
-            <Button Content="Выбрать всё" Margin="0,0,8,6" Command="{Binding SelectAllCommand}"
-                    IsEnabled="{Binding CanEditSelection}" />
-            <Button Content="Снять выбор" Margin="0,0,8,6" Command="{Binding SelectNoneCommand}"
-                    IsEnabled="{Binding CanEditSelection}" />
-            <Button Content="Только недостающие" Margin="0,0,14,6" Command="{Binding SelectProblemsCommand}"
-                    IsEnabled="{Binding CanEditSelection}" />
-            <CheckBox Content="Переустановить установленные" MinWidth="0" Margin="0,0,14,6" IsChecked="{Binding ForceReinstall}"
-                      IsEnabled="{Binding CanEditSelection}" />
-            <CheckBox Content="Скрыть выполненные" MinWidth="0" Margin="0,0,0,6" IsChecked="{Binding HideCompleted}" />
-        </WrapPanel>
+        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <WrapPanel>
+                <Button Content="Начать настройку" Style="{StaticResource AccentButtonStyle}" Margin="0,0,12,6" Padding="18,6"
+                        Command="{Binding StartSetupCommand}"
+                        ToolTip="Установить и настроить всё, что отмечено галочками ниже" />
+                <Button Content="Отмена" Margin="0,0,12,6" Padding="18,6" Command="{Binding CancelSetupCommand}"
+                        Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}" />
+                <Button Content="Отметить только недостающее" Margin="0,0,12,6" Padding="14,6" Command="{Binding SelectProblemsCommand}"
+                        IsEnabled="{Binding CanEditSelection}"
+                        ToolTip="Снимет галочки с того, что уже установлено, и оставит только то, чего не хватает" />
+            </WrapPanel>
+
+            <!-- Редко нужные действия не должны спорить с главной кнопкой -->
+            <Expander Header="Дополнительно" Margin="0,2,0,0">
+                <WrapPanel Margin="0,8,0,0">
+                    <Button Content="КриптоПро" Margin="0,0,8,6" Padding="14,5"
+                            Command="{Binding SetupCryptoProCommand}" IsEnabled="{Binding CanEditSelection}"
+                            ToolTip="Сразу запустить настройку КриптоПро и остальных компонентов, без Континент-АП" />
+                    <Button Content="КриптоПро с Континентом" Margin="0,0,16,6" Padding="14,5"
+                            Command="{Binding SetupCryptoProWithKontinentCommand}" IsEnabled="{Binding CanEditSelection}"
+                            ToolTip="Сразу запустить настройку КриптоПро, остальных компонентов и Континент-АП (если задан его дистрибутив)" />
+                    <Button Content="Отметить всё" Margin="0,0,8,6" Command="{Binding SelectAllCommand}"
+                            IsEnabled="{Binding CanEditSelection}" />
+                    <Button Content="Снять все галочки" Margin="0,0,16,6" Command="{Binding SelectNoneCommand}"
+                            IsEnabled="{Binding CanEditSelection}" />
+                    <CheckBox Content="Переустановить установленные" MinWidth="0" Margin="0,0,14,6" IsChecked="{Binding ForceReinstall}"
+                              IsEnabled="{Binding CanEditSelection}" />
+                    <CheckBox Content="Скрыть выполненные" MinWidth="0" Margin="0,0,0,6" IsChecked="{Binding HideCompleted}" />
+                </WrapPanel>
+            </Expander>
+        </StackPanel>
 
         <!-- Индикатор выполнения закреплён вверху -->
         <ContentPresenter DockPanel.Dock="Top" Margin="0,0,0,12" Content="{Binding}"

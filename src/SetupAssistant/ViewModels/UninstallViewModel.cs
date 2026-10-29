@@ -230,7 +230,7 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
         }
         catch (Exception ex)
         {
-            _dialogService.ShowError($"Ошибка удаления: {ex.Message}");
+            _dialogService.ShowProblem(ErrorAdvisor.FromException("Удаление не завершилось", ex));
         }
         finally
         {
@@ -335,7 +335,7 @@ public partial class UninstallViewModel : StepsViewModelBase, INavigationAware
         }
         catch (Exception ex)
         {
-            _dialogService.ShowError($"Не удалось запланировать перезагрузку: {ex.Message}");
+            _dialogService.ShowProblem(ErrorAdvisor.RebootFailed(ex));
         }
     }
 
