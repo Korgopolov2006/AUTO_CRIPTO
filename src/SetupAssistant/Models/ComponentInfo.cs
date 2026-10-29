@@ -24,10 +24,15 @@ public partial class ComponentInfo : ObservableObject
     private string? _recommendedVersion;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DetailsText))]
     private string _description = string.Empty;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DetailsText))]
     private string? _errorMessage;
+
+    /// <summary>Текст для таблицы диагностики: описание проблемы, а если её нет — пояснение, что за компонент.</summary>
+    public string DetailsText => string.IsNullOrEmpty(ErrorMessage) ? Description : ErrorMessage;
 
     /// <summary>Группа в списке диагностики.</summary>
     public string Category { get; set; } = "Прочее";

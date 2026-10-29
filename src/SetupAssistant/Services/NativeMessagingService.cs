@@ -75,10 +75,10 @@ public sealed class NativeMessagingService : INativeMessagingService
         return new ComponentInfo
         {
             Type = ComponentType.NativeMessagingHost,
-            Name = $"Native messaging: {host.Name}",
+            Name = $"Связь браузера с плагином: {hint} ({host.Name})",
             Description = found
-                ? $"Хост зарегистрирован: {string.Join("; ", registeredIn)}"
-                : $"Хост для расширений браузера ({hint})",
+                ? $"Браузер сможет обращаться к плагину «{hint}». Регистрация найдена: {string.Join("; ", registeredIn)}"
+                : $"Через эту запись расширение браузера обращается к плагину «{hint}»",
             Status = found ? StatusLevel.Ok : StatusLevel.Error,
             ErrorMessage = found
                 ? null

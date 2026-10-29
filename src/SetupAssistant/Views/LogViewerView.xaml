@@ -35,32 +35,32 @@
             <DataGrid x:Name="EntriesGrid" ItemsSource="{Binding Entries}" SelectionMode="Extended" AutomationProperties.Name="Журнал действий"
                       Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Дата и время" Binding="{Binding Timestamp, StringFormat='dd.MM.yyyy HH:mm:ss'}" Width="Auto" />
-                    <DataGridTemplateColumn Header="Уровень" Width="Auto">
+                    <DataGridTextColumn ElementStyle="{StaticResource DataGridMutedTextStyle}" Header="Когда" Binding="{Binding Timestamp, StringFormat='dd.MM.yyyy HH:mm:ss'}" Width="Auto" />
+                    <DataGridTemplateColumn Header="Уровень" Width="Auto" MinWidth="110">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Level, Converter={StaticResource LogLevelToText}}" Margin="8,0" VerticalAlignment="Center" FontWeight="SemiBold">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Level}" Value="Warning">
-                                                    <Setter Property="Foreground" Value="{StaticResource StatusWarningBrush}" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Level}" Value="Error">
-                                                    <Setter Property="Foreground" Value="{StaticResource StatusErrorBrush}" />
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding Level}" Value="Critical">
-                                                    <Setter Property="Foreground" Value="{StaticResource StatusErrorBrush}" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                <Border x:Name="Pill" Style="{StaticResource PillStyle}">
+                                    <TextBlock x:Name="Label" Text="{Binding Level, Converter={StaticResource LogLevelToText}}" FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Level}" Value="Warning">
+                                        <Setter TargetName="Pill" Property="Background" Value="{StaticResource StatusWarningTintBrush}" />
+                                        <Setter TargetName="Label" Property="Foreground" Value="{StaticResource StatusWarningBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Level}" Value="Error">
+                                        <Setter TargetName="Pill" Property="Background" Value="{StaticResource StatusErrorTintBrush}" />
+                                        <Setter TargetName="Label" Property="Foreground" Value="{StaticResource StatusErrorBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Level}" Value="Critical">
+                                        <Setter TargetName="Pill" Property="Background" Value="{StaticResource StatusErrorTintBrush}" />
+                                        <Setter TargetName="Label" Property="Foreground" Value="{StaticResource StatusErrorBrush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Действие" Binding="{Binding Action}" Width="1.8*" MinWidth="140" />
+                    <DataGridTextColumn ElementStyle="{StaticResource DataGridStrongTextStyle}" Header="Действие" Binding="{Binding Action}" Width="1.8*" MinWidth="140" />
                     <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Результат" Binding="{Binding Result}" Width="1.8*" MinWidth="160" />
                     <DataGridTextColumn ElementStyle="{StaticResource DataGridWrapTextStyle}" Header="Ошибка" Binding="{Binding ErrorText}" Width="2*" MinWidth="160" />
                 </DataGrid.Columns>
