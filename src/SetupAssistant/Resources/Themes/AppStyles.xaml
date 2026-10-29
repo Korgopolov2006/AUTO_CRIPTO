@@ -130,19 +130,90 @@
         <Setter Property="ToolTip" Value="{Binding Text, RelativeSource={RelativeSource Self}}" />
     </Style>
 
-    <!-- Таблицы -->
+    <!-- Таблицы: как в Проводнике и Параметрах Windows — без вертикальных линий, спокойный серый заголовок,
+         просторные строки, подсветка под курсором, статусы цветными «пилюлями» -->
     <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
         <Setter Property="AutoGenerateColumns" Value="False" />
         <Setter Property="CanUserAddRows" Value="False" />
         <Setter Property="CanUserDeleteRows" Value="False" />
+        <Setter Property="CanUserResizeRows" Value="False" />
         <Setter Property="IsReadOnly" Value="True" />
         <Setter Property="HeadersVisibility" Value="Column" />
         <Setter Property="GridLinesVisibility" Value="Horizontal" />
         <Setter Property="RowHeaderWidth" Value="0" />
-        <Setter Property="MinRowHeight" Value="38" />
+        <Setter Property="MinRowHeight" Value="44" />
         <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
         <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+        <Setter Property="VerticalGridLinesBrush" Value="Transparent" />
+        <Setter Property="ui:ControlHelper.CornerRadius" Value="8" />
+        <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+    </Style>
+
+    <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Padding" Value="12,11" />
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    </Style>
+
+    <Style TargetType="DataGridCell" BasedOn="{StaticResource {x:Type DataGridCell}}">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+    </Style>
+
+    <!-- Цветные «пилюли» состояний -->
+    <SolidColorBrush x:Key="StatusOkTintBrush" Color="#292E9F5B" />
+    <SolidColorBrush x:Key="StatusWarningTintBrush" Color="#33E5A00D" />
+    <SolidColorBrush x:Key="StatusErrorTintBrush" Color="#2ED13438" />
+    <SolidColorBrush x:Key="StatusNeutralTintBrush" Color="#268A8A8A" />
+
+    <Style x:Key="PillStyle" TargetType="Border">
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="10,2,10,3" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="Background" Value="{StaticResource StatusNeutralTintBrush}" />
+    </Style>
+
+    <!-- Статус компонента в таблице диагностики: DataContext — ComponentInfo -->
+    <DataTemplate x:Key="StatusPillTemplate">
+        <Border x:Name="Pill" Style="{StaticResource PillStyle}">
+            <TextBlock x:Name="Label" Text="{Binding StatusText}" FontSize="12" FontWeight="SemiBold" TextWrapping="NoWrap"
+                       Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+        </Border>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding Status}" Value="{x:Static models:StatusLevel.Ok}">
+                <Setter TargetName="Pill" Property="Background" Value="{StaticResource StatusOkTintBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource StatusOkBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Status}" Value="{x:Static models:StatusLevel.Warning}">
+                <Setter TargetName="Pill" Property="Background" Value="{StaticResource StatusWarningTintBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource StatusWarningBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Status}" Value="{x:Static models:StatusLevel.Error}">
+                <Setter TargetName="Pill" Property="Background" Value="{StaticResource StatusErrorTintBrush}" />
+                <Setter TargetName="Label" Property="Foreground" Value="{StaticResource StatusErrorBrush}" />
+            </DataTrigger>
+            <DataTrigger Binding="{Binding Status}" Value="{x:Static models:StatusLevel.Info}">
+                <Setter TargetName="Label" Property="Foreground" Value="{DynamicResource SystemControlHighlightAccentBrush}" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+
+    <!-- Приглушённый текст ячейки (даты, версии) -->
+    <Style x:Key="DataGridMutedTextStyle" TargetType="TextBlock" BasedOn="{StaticResource DataGridWrapTextStyle}">
+        <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+    </Style>
+
+    <!-- Название в первой колонке выделяется -->
+    <Style x:Key="DataGridStrongTextStyle" TargetType="TextBlock" BasedOn="{StaticResource DataGridWrapTextStyle}">
+        <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
     <!-- Значок состояния: Content = StatusLevel -->
