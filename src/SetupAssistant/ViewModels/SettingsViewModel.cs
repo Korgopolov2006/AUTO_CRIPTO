@@ -112,6 +112,12 @@ public partial class SettingsViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void OpenConfigEditor() => _navigationService.NavigateTo<ConfigEditorViewModel>();
+
+    [RelayCommand]
+    private void OpenVersions() => _navigationService.NavigateTo<VersionsViewModel>();
+
+    [RelayCommand]
     private void ReloadConfig()
     {
         Config = _configService.Load();

@@ -226,6 +226,20 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
     }
 
+    /// <summary>Окно «установка невозможна»: называет сами блокирующие проверки, а не отсылает к списку на экране.</summary>
+    private ProblemInfo BlockedByPreflight()
+    {
+        var blocking = PreflightChecks.Where(c => c.IsBlocking).ToList();
+        var reasons = blocking.Count == 0
+            ? "Предварительная проверка нашла проблему."
+            : string.Join("\n", blocking.Select(c => $"• {c.Name}: {c.Message}"));
+
+        return new ProblemInfo(
+            "Установку пока нельзя начать",
+            reasons,
+            "Устраните проблему из списка (он на этой странице, в блоке «Предварительная проверка»), затем нажмите «Проверить снова» и начните настройку.");
+    }
+
     /// <summary>Отмечает указанные шаги, не запуская установку: пользователь сам решает, что нужно на этом компьютере.</summary>
     public void PrepareSelection(IReadOnlyCollection<SetupStepKind> kinds)
     {
@@ -261,7 +275,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
 
         if (HasBlockingPreflight)
         {
-            _dialogService.ShowError("Предварительная проверка выявила проблему, из-за которой установка невозможна. Устраните её (см. список вверху) и повторите.", "Установка невозможна");
+            _dialogService.ShowProblem(BlockedByPreflight());
             return;
         }
 
@@ -297,7 +311,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
 
         if (HasBlockingPreflight)
         {
-            _dialogService.ShowError("Предварительная проверка выявила проблему, из-за которой установка невозможна. Устраните её и повторите.", "Установка невозможна");
+            _dialogService.ShowProblem(BlockedByPreflight());
             return;
         }
 
@@ -395,6 +409,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         var stopwatch = Stopwatch.StartNew();
         var askToRestart = false;
         var rollbackNeedsRestart = false;
+        var retryRun = false;
 
         var progress = new Progress<SetupStepModel>(_ => UpdateProgress());
 
@@ -413,7 +428,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
         catch (Exception ex)
         {
-            _dialogService.ShowError($"Ошибка настройки рабочего места: {ex.Message}");
+            retryRun = _dialogService.ShowProblem(ErrorAdvisor.FromException("Настройка не завершилась", ex, canRetry: true)) == ProblemChoice.Retry;
         }
         finally
         {
@@ -431,6 +446,10 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         else if (rollbackNeedsRestart && RebootPrompt.TryMarkAutoPrompted())
         {
             RestartAfterRollback();
+        }
+        else if (retryRun)
+        {
+            await RunAsync(stepsToRun, resetAll: false);
         }
     }
 
@@ -450,7 +469,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
         catch (Exception ex)
         {
-            _dialogService.ShowError($"Не удалось запланировать перезагрузку: {ex.Message}");
+            _dialogService.ShowProblem(ErrorAdvisor.RebootFailed(ex));
         }
     }
 
@@ -611,7 +630,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         }
         catch (Exception ex)
         {
-            _dialogService.ShowError($"Не удалось сохранить отчёт: {ex.Message}");
+            _dialogService.ShowProblem(ErrorAdvisor.FromException("Не удалось сохранить отчёт", ex));
         }
     }
 
@@ -638,7 +657,7 @@ public partial class SetupWizardViewModel : StepsViewModelBase, INavigationAware
         catch (Exception ex)
         {
             ResumeRegistration.Unregister();
-            _dialogService.ShowError($"Не удалось запланировать перезагрузку: {ex.Message}");
+            _dialogService.ShowProblem(ErrorAdvisor.RebootFailed(ex));
         }
     }
 }

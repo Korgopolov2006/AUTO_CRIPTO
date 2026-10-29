@@ -1,3 +1,4 @@
+using SetupAssistant.Models;
 using SetupAssistant.Services.Interfaces;
 
 namespace SetupAssistant.Services;
@@ -25,6 +26,12 @@ public sealed class SilentDialogService : IDialogService
     public void ShowWarning(string message, string title = "Предупреждение") => _logger.Warning(title, message);
 
     public void ShowError(string message, string title = "Ошибка") => _logger.Error(title, message);
+
+    public ProblemChoice ShowProblem(ProblemInfo problem)
+    {
+        _logger.Error(problem.Title, problem.WhatHappened, problem.Details);
+        return ProblemChoice.Close;
+    }
 
     public bool Confirm(string message, string title = "Подтверждение") => true;
 

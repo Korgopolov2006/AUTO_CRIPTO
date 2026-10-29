@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using SetupAssistant.Helpers;
 using SetupAssistant.Models;
 using SetupAssistant.Services.Interfaces;
 
@@ -171,18 +172,26 @@ public partial class DiagnosticsViewModel : ViewModelBase, INavigationAware, IRe
             return;
         }
 
-        IsBusy = true;
-        try
+        while (true)
         {
-            await _statusService.RefreshAsync();
-        }
-        catch (Exception ex)
-        {
-            _dialogService.ShowError($"Не удалось выполнить диагностику: {ex.Message}");
-        }
-        finally
-        {
-            IsBusy = _statusService.IsChecking;
+            IsBusy = true;
+            try
+            {
+                await _statusService.RefreshAsync();
+                return;
+            }
+            catch (Exception ex)
+            {
+                var choice = _dialogService.ShowProblem(ErrorAdvisor.FromException("Не удалось выполнить диагностику", ex, canRetry: true));
+                if (choice != ProblemChoice.Retry)
+                {
+                    return;
+                }
+            }
+            finally
+            {
+                IsBusy = _statusService.IsChecking;
+            }
         }
     }
 
@@ -253,7 +262,7 @@ public partial class DiagnosticsViewModel : ViewModelBase, INavigationAware, IRe
     {
         if (Components.Count == 0)
         {
-            _dialogService.ShowWarning("Сначала выполните диагностику рабочего места.");
+            _dialogService.ShowWarning("Отчёту пока нечего показывать. Нажмите «Запустить диагностику» — через несколько секунд кнопка экспорта заработает.");
             return;
         }
 
@@ -283,7 +292,10 @@ public partial class DiagnosticsViewModel : ViewModelBase, INavigationAware, IRe
         }
         catch (Exception ex)
         {
-            _dialogService.ShowError($"Не удалось сохранить отчёт: {ex.Message}");
+            if (_dialogService.ShowProblem(ErrorAdvisor.FromException("Не удалось сохранить отчёт", ex, canRetry: true)) == ProblemChoice.Retry)
+            {
+                ExportReport();
+            }
         }
     }
 }

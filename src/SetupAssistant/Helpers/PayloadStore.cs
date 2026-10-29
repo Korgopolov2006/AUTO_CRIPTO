@@ -94,6 +94,10 @@ public sealed class PayloadStore : IDisposable
 
     public bool Contains(string relativePath) => _entries.ContainsKey(Normalize(relativePath));
 
+    /// <summary>Размер файла в данных exe без распаковки; null, если файла нет.</summary>
+    public long? GetSize(string relativePath) =>
+        _entries.TryGetValue(Normalize(relativePath), out var entry) ? entry.Length : null;
+
     public string? ReadAllText(string relativePath)
     {
         lock (_sync)

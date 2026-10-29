@@ -62,12 +62,12 @@ public static class HelpAdvisor
                 "Контейнеры закрытых ключей не найдены. Подключите носитель с ключом. Если ключ хранится в реестре или файле, " +
                 "откройте «КриптоПро CSP → Сервис → Скопировать» и проверьте, что контейнер виден.",
             ComponentType.Token =>
-                "Подключите токен в USB-порт. Если он подключён, но не виден, попробуйте другой порт, проверьте драйвер токена и службу «Смарт-карты».",
+                "Подключите токен (USB-носитель с ключом электронной подписи) в порт. Если он подключён, но не виден, попробуйте другой порт, проверьте драйвер токена и службу «Смарт-карты».",
             ComponentType.Certificate =>
                 "В хранилище есть просроченные сертификаты или сертификаты без цепочки доверия. Для подписи используйте действующий. " +
                 "Если цепочка не строится, установите корневой и промежуточные сертификаты удостоверяющего центра, выдавшего сертификат.",
             ComponentType.CaCertificates =>
-                "Сертификаты удостоверяющего центра не установлены. В вашей организации они обычно ставятся групповой политикой; если нет — добавьте их в конфигурацию.",
+                "Сертификаты удостоверяющего центра не установлены. В организации их обычно ставит администратор групповой политикой — сообщите ему об этом.",
             ComponentType.KontinentAp => null,
             _ => c.Status == StatusLevel.Error ? "Подробности смотрите в журнале (раздел «Журнал») и приложите пакет для поддержки (Настройки)." : null
         };
@@ -109,30 +109,26 @@ public static class HelpAdvisor
             return ForFullCleanupStep(kind, text);
         }
 
-        if (text.Contains("1618", StringComparison.Ordinal))
+        if (ErrorAdvisor.AdviceForInstallerText(text) is { } codeAdvice)
         {
-            return "Сейчас выполняется другая установка. Дождитесь её завершения (или перезагрузите компьютер) и нажмите «Повторить».";
+            return codeAdvice;
         }
 
-        if (text.Contains("1603", StringComparison.Ordinal) || text.Contains("1605", StringComparison.Ordinal))
-        {
-            return "Установщик не смог завершиться. Закройте браузеры и программы КриптоПро, при необходимости перезагрузите компьютер и повторите. " +
-                   "Причина будет в журнале (раздел «Журнал»).";
-        }
-
-        if (text.Contains("3010", StringComparison.Ordinal) || text.Contains("перезагруз", StringComparison.OrdinalIgnoreCase))
+        if (text.Contains("перезагруз", StringComparison.OrdinalIgnoreCase))
         {
             return "Для завершения нужна перезагрузка. Используйте «Перезагрузить и продолжить» в сводке: настройка продолжится сама.";
         }
 
         if (text.Contains("скачать", StringComparison.OrdinalIgnoreCase) || text.Contains("загрузк", StringComparison.OrdinalIgnoreCase))
         {
-            return "Нет связи с сервером загрузки. Положите дистрибутив в папку Appendices (путь указан в Config.json) — приложение использует локальный файл.";
+            return "Нет связи с сервером загрузки. Проверьте интернет. Если его нет на этом компьютере, попросите администратора " +
+                   "положить установочный файл рядом с программой: она возьмёт его оттуда.";
         }
 
         if (text.Contains("не задан", StringComparison.OrdinalIgnoreCase) || text.Contains("не найден", StringComparison.OrdinalIgnoreCase))
         {
-            return "Не найден файл дистрибутива. Проверьте папку Appendices и пути в Config.json.";
+            return "Не найден установочный файл. Обратитесь к администратору: ему нужно положить файл рядом с программой " +
+                   "(для него: папка Appendices и пути в Config.json).";
         }
 
         return kind switch
@@ -145,7 +141,7 @@ public static class HelpAdvisor
             SetupStepKind.InstallTokenCertificates =>
                 "Подключите токен и повторите шаг. Если сертификат на токене есть, но не установился, откройте «КриптоПро CSP → Сервис → Просмотреть сертификаты в контейнере → Установить».",
             SetupStepKind.InstallRutokenDriver or SetupStepKind.VerifyRutokenDriver =>
-                "После установки драйвера отключите и снова подключите токен. Если ошибка повторяется, установите драйвер вручную из папки Appendices.",
+                "После установки драйвера отключите и снова подключите токен. Если ошибка повторяется, установите драйвер вручную: файл драйвера есть у администратора.",
             SetupStepKind.InstallCryptoProCsp or SetupStepKind.VerifyCryptoProCsp =>
                 "Закройте все программы КриптоПро и браузеры, перезагрузите компьютер и повторите установку.",
             SetupStepKind.InstallChromiumGost or SetupStepKind.VerifyChromiumGost =>
@@ -153,12 +149,12 @@ public static class HelpAdvisor
             SetupStepKind.InstallKonturPlugin or SetupStepKind.VerifyKonturPlugin or SetupStepKind.InstallGosuslugiPlugin or SetupStepKind.VerifyGosuslugiPlugin =>
                 "Закройте браузеры и повторите установку плагина от имени администратора.",
             SetupStepKind.InstallKontinentAp or SetupStepKind.VerifyKontinentAp =>
-                "Закройте Континент-АП и повторите установку от имени администратора. Если установщик не принимает ключи тихой установки, " +
-                "проверьте SilentArgs в разделе Installers → KontinentAp файла Config.json; подробности — в журнале и в msi-*.log.",
+                "Закройте Континент-АП и повторите установку от имени администратора. Подробности — в журнале и в файле msi-*.log. " +
+                "Администратору: если установщик не принимает ключи тихой установки, проверьте SilentArgs в разделе Installers → KontinentAp файла Config.json.",
             SetupStepKind.ImportKontinentConfig =>
                 "Проверьте, что Континент-АП установлен, и файлы профиля и сертификатов в Config.json (раздел Kontinent) существуют. " +
                 "Если сертификаты не добавились через КриптоПро, их можно добавить вручную в интерфейсе Континент-АП.",
-            _ => status == StatusLevel.Error ? "Нажмите «Повторить». Если ошибка повторяется, посмотрите журнал или соберите пакет дляподдержки (Настройки)." : null
+            _ => status == StatusLevel.Error ? "Нажмите «Повторить». Если ошибка повторяется, откройте «Журнал» или соберите пакет для поддержки («Настройки» → «Пакет для поддержки») и отправьте его в поддержку." : null
         };
     }
 

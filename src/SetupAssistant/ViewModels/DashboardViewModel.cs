@@ -41,6 +41,14 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware, IRefr
     [ObservableProperty]
     private bool _canSelectMissing;
 
+    /// <summary>Подпись единственной главной кнопки карточки: она всегда предлагает самый полезный следующий шаг.</summary>
+    [ObservableProperty]
+    private string _primaryActionText = "Проверить рабочее место";
+
+    /// <summary>Вторая кнопка «Проверить снова» нужна, только когда главная делает что-то другое.</summary>
+    [ObservableProperty]
+    private bool _showRecheckButton;
+
     [ObservableProperty]
     private bool _isSetupRunning;
 
@@ -134,18 +142,24 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware, IRefr
             ReadinessLevel = StatusLevel.InProgress;
             ReadinessTitle = "Выполняется настройка рабочего места";
             ReadinessText = _wizard.CurrentStepText;
+            PrimaryActionText = "Показать ход настройки";
+            ShowRecheckButton = false;
         }
         else if (IsChecking)
         {
             ReadinessLevel = StatusLevel.InProgress;
             ReadinessTitle = "Собираем сведения о рабочем месте…";
             ReadinessText = _statusService.CurrentStepText;
+            PrimaryActionText = "Проверяем…";
+            ShowRecheckButton = false;
         }
         else if (_statusService.CheckedAt is null)
         {
             ReadinessLevel = StatusLevel.NotChecked;
             ReadinessTitle = "Сведения ещё не собраны";
-            ReadinessText = "Нажмите «Проверить снова», чтобы увидеть, что установлено на этом компьютере.";
+            ReadinessText = "Нажмите «Проверить рабочее место»: проверка занимает несколько секунд и ничего не устанавливает.";
+            PrimaryActionText = "Проверить рабочее место";
+            ShowRecheckButton = false;
         }
         else
         {
@@ -159,6 +173,20 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware, IRefr
             ReadinessTitle = hasOutdated ? "Рабочее место: есть что обновить" : "Рабочее место: сведения";
             ReadinessText = $"Установлено компонентов: {installed} из {components.Count}. {domainText}".Trim()
                             + (hasOutdated ? " Версия некоторых компонентов ниже рекомендуемой." : string.Empty);
+
+            if (CanSelectMissing)
+            {
+                var missing = summary.Missing.Count;
+                PrimaryActionText = $"Настроить недостающее ({missing})";
+                ShowRecheckButton = true;
+                ReadinessText += " Дальше: нажмите главную кнопку, проверьте отмеченное и нажмите «Начать настройку». Ничего не установится само.";
+            }
+            else
+            {
+                PrimaryActionText = "Проверить снова";
+                ShowRecheckButton = false;
+                ReadinessText += " Если что-то не работает, откройте «Диагностика»: там у каждой проблемы есть подсказка, что делать.";
+            }
         }
     }
 
@@ -210,6 +238,28 @@ public partial class DashboardViewModel : ViewModelBase, INavigationAware, IRefr
 
         _wizard.PrepareSelection(kinds);
         _navigationService.NavigateTo<SetupWizardViewModel>();
+    }
+
+    /// <summary>Главная кнопка карточки: делает то, что сейчас полезнее всего (см. <see cref="PrimaryActionText"/>).</summary>
+    [RelayCommand]
+    private async Task RunPrimaryAsync()
+    {
+        if (IsSetupRunning)
+        {
+            ShowSetupProgress();
+        }
+        else if (IsChecking)
+        {
+            // Идёт проверка: кнопка недоступна по смыслу, повторный запуск не нужен.
+        }
+        else if (CanSelectMissing)
+        {
+            SelectMissing();
+        }
+        else
+        {
+            await RecheckAsync();
+        }
     }
 
     [RelayCommand]

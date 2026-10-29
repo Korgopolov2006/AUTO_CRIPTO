@@ -1,8 +1,10 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using SetupAssistant.Helpers;
+using SetupAssistant.Models;
 using ModernWpf.Controls;
 using SetupAssistant.Services.Interfaces;
 
@@ -22,6 +24,125 @@ public sealed class DialogService : IDialogService
         Warning,
         Error,
         Question
+    }
+
+    private readonly ILoggingService _logger;
+
+    public DialogService(ILoggingService logger)
+    {
+        _logger = logger;
+    }
+
+    public ProblemChoice ShowProblem(ProblemInfo problem)
+    {
+        _logger.Error(problem.Title, problem.WhatHappened, problem.Details);
+
+        var dispatcher = Application.Current.Dispatcher;
+        if (!dispatcher.CheckAccess())
+        {
+            return dispatcher.Invoke(() => ShowProblem(problem));
+        }
+
+        var content = new StackPanel { MaxWidth = 520 };
+        content.Children.Add(new TextBlock { Text = problem.WhatHappened, TextWrapping = TextWrapping.Wrap });
+
+        if (!string.IsNullOrWhiteSpace(problem.WhatToDo))
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = "Что сделать",
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 14, 0, 2)
+            });
+            content.Children.Add(new TextBlock { Text = problem.WhatToDo, TextWrapping = TextWrapping.Wrap });
+        }
+
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 16, 0, 0) };
+        var openLog = new Button { Content = "Открыть журнал", Margin = new Thickness(0, 0, 8, 0) };
+        openLog.Click += (_, _) => OpenLogFolder();
+        var copy = new Button { Content = "Скопировать описание" };
+        copy.Click += (_, _) =>
+        {
+            if (CopyToClipboard(BuildSupportText(problem)))
+            {
+                copy.Content = "Скопировано";
+            }
+        };
+        actions.Children.Add(openLog);
+        actions.Children.Add(copy);
+        content.Children.Add(actions);
+
+        if (!string.IsNullOrWhiteSpace(problem.Details))
+        {
+            content.Children.Add(new Expander
+            {
+                Header = "Подробности для поддержки",
+                Margin = new Thickness(0, 12, 0, 0),
+                Content = new TextBox
+                {
+                    Text = problem.Details,
+                    IsReadOnly = true,
+                    TextWrapping = TextWrapping.Wrap,
+                    MaxHeight = 120,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                }
+            });
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = BuildTitle(DialogKind.Error, problem.Title),
+            Content = content,
+            PrimaryButtonText = problem.CanRetry ? "Повторить" : "Закрыть",
+            CloseButtonText = problem.CanRetry ? "Закрыть" : string.Empty,
+            DefaultButton = ContentDialogButton.Primary
+        };
+
+        var result = ContentDialogResult.None;
+        var frame = new DispatcherFrame();
+        dialog.Closed += (_, args) =>
+        {
+            result = args.Result;
+            frame.Continue = false;
+        };
+
+        _ = dialog.ShowAsync();
+        Dispatcher.PushFrame(frame);
+        return problem.CanRetry && result == ContentDialogResult.Primary ? ProblemChoice.Retry : ProblemChoice.Close;
+    }
+
+    private void OpenLogFolder()
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(_logger.CurrentLogFilePath);
+            if (!string.IsNullOrEmpty(directory) && Directory.Exists(directory))
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"\"{directory}\"") { UseShellExecute = true });
+            }
+        }
+        catch (Exception)
+        {
+            // Не открылась папка — окно ошибки остаётся, пользователь может скопировать описание.
+        }
+    }
+
+    private static string BuildSupportText(ProblemInfo problem) =>
+        $"{problem.Title}\n{problem.WhatHappened}" +
+        (string.IsNullOrWhiteSpace(problem.Details) ? string.Empty : $"\n\nПодробности: {problem.Details}") +
+        $"\n\nВерсия: {AppVersionInfo.Current}";
+
+    private static bool CopyToClipboard(string text)
+    {
+        try
+        {
+            Clipboard.SetText(text);
+            return true;
+        }
+        catch (System.Runtime.InteropServices.COMException)
+        {
+            return false;
+        }
     }
 
     public void ShowInfo(string message, string title = "Сообщение") =>
